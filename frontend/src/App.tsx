@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
-import axios from 'axios';
+import React, { useState, useEffect, useRef } from 'react';
 import './App.css';
 
 interface Message {
+  id: number;
   sender: 'user' | 'ai';
   text: string;
 }
@@ -11,24 +11,53 @@ function App() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const chatWindowRef = useRef<HTMLDivElement>(null);
+
+  // Fait défiler la fenêtre de chat vers le bas
+  useEffect(() => {
+    chatWindowRef.current?.scrollTo({ top: chatWindowRef.current.scrollHeight, behavior: 'smooth' });
+  }, [messages]);
 
   const sendMessage = async () => {
-    if (!input.trim()) return;
+    if (!input.trim() || isLoading) return;
 
-    const userMessage: Message = { sender: 'user', text: input };
+    const userMessage: Message = { id: Date.now(), sender: 'user', text: input };
     setMessages(prev => [...prev, userMessage]);
     setInput('');
     setIsLoading(true);
 
+    // Prépare le message de l'IA qui sera rempli par le stream
+    const aiMessageId = Date.now() + 1;
+    const aiMessage: Message = { id: aiMessageId, sender: 'ai', text: '' };
+    setMessages(prev => [...prev, aiMessage]);
+
     try {
-      // L'URL pointe vers le backend qui tourne sur le port 8000
-      const response = await axios.post('http://localhost:8000/api/chat', { text: input });
-      const aiMessage: Message = { sender: 'ai', text: response.data.response };
-      setMessages(prev => [...prev, aiMessage]);
+      const response = await fetch('http://localhost:8000/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: input }),
+      });
+
+      if (!response.body) return;
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let done = false;
+
+      while (!done) {
+        const { value, done: readerDone } = await reader.read();
+        done = readerDone;
+        const chunk = decoder.decode(value, { stream: true });
+        
+        setMessages(prev => prev.map(msg => 
+          msg.id === aiMessageId ? { ...msg, text: msg.text + chunk } : msg
+        ));
+      }
     } catch (error) {
-      console.error("Erreur lors de l'envoi du message:", error);
-      const errorMessage: Message = { sender: 'ai', text: "Désolé, une erreur est survenue lors de la communication avec le backend." };
-      setMessages(prev => [...prev, errorMessage]);
+      console.error("Erreur lors de la réception du stream:", error);
+      setMessages(prev => prev.map(msg => 
+        msg.id === aiMessageId ? { ...msg, text: "Désolé, une erreur est survenue." } : msg
+      ));
     } finally {
       setIsLoading(false);
     }
@@ -45,13 +74,13 @@ function App() {
       <header>
         <h1>CounselAI</h1>
       </header>
-      <div className="chat-window">
-        {messages.map((msg, index) => (
-          <div key={index} className={`message ${msg.sender}`}>
+      <div className="chat-window" ref={chatWindowRef}>
+        {messages.map((msg) => (
+          <div key={msg.id} className={`message ${msg.sender}`}>
             <p>{msg.text}</p>
           </div>
         ))}
-        {isLoading && (
+        {isLoading && messages[messages.length - 1]?.sender === 'user' && (
           <div className="message ai">
             <p>...</p>
           </div>
