@@ -15,6 +15,7 @@ app = FastAPI()
 origins = [
     "http://localhost",
     "http://localhost:5173", # Port par défaut de Vite/React
+    "http://localhost:5174", # Port de repli que Vite utilise souvent
 ]
 
 app.add_middleware(
