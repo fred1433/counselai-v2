@@ -7,6 +7,11 @@ interface Message {
   text: string;
 }
 
+interface GeminiHistoryEntry {
+  role: string;
+  parts: { text: string }[];
+}
+
 function App() {
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -37,11 +42,17 @@ function App() {
     const aiMessage: Message = { id: aiMessageId, sender: 'ai', text: '' };
     setMessages(prev => [...prev, aiMessage]);
 
+    // Conversion de notre historique de messages au format attendu par Gemini
+    const historyForApi: GeminiHistoryEntry[] = messages.map(msg => ({
+      role: msg.sender === 'user' ? 'user' : 'model',
+      parts: [{ text: msg.text }],
+    }));
+
     try {
       const response = await fetch('http://localhost:8000/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: input }),
+        body: JSON.stringify({ text: input, history: historyForApi }), // On envoie l'historique
       });
 
       if (!response.body) return;
@@ -49,15 +60,26 @@ function App() {
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let done = false;
+      let fullResponseText = "";
 
       while (!done) {
         const { value, done: readerDone } = await reader.read();
         done = readerDone;
         const chunk = decoder.decode(value, { stream: true });
+        fullResponseText += chunk;
         
-        setMessages(prev => prev.map(msg => 
-          msg.id === aiMessageId ? { ...msg, text: msg.text + chunk } : msg
-        ));
+        // Détection du tool call
+        if (fullResponseText.startsWith("TOOL_CALL:")) {
+          done = true; // On arrête de lire le stream
+          const toolName = fullResponseText.split(':')[1];
+          setMessages(prev => prev.map(msg => 
+            msg.id === aiMessageId ? { ...msg, text: `Lancement de la génération via l'outil : ${toolName}...` } : msg
+          ));
+        } else {
+          setMessages(prev => prev.map(msg => 
+            msg.id === aiMessageId ? { ...msg, text: fullResponseText } : msg
+          ));
+        }
       }
     } catch (error) {
       console.error("Erreur lors de la réception du stream:", error);
