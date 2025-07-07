@@ -8,7 +8,13 @@ interface Message {
 }
 
 function App() {
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<Message[]>([
+    {
+      id: 1, // ID fixe pour le premier message
+      sender: 'ai',
+      text: "Bonjour. Pour ce nouveau mandat, quel est l'objectif stratégique principal que votre client cherche à atteindre ?"
+    }
+  ]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const chatWindowRef = useRef<HTMLDivElement>(null);
