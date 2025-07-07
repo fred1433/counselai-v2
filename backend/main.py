@@ -88,46 +88,31 @@ async def chat(request: ChatRequest):
     """
     Endpoint de chat qui gère la logique du Master Prompt, des outils, et de l'historique.
     """
-    try:
-        model = genai.GenerativeModel(
-            model_name=os.getenv("GEMINI_MODEL_NAME", "gemini-pro"),
-            system_instruction=MASTER_PROMPT,
-            tools=[lancer_cascade_generation_tool]
-        )
-        
-        chat_session = model.start_chat(history=request.history)
-        response = await chat_session.send_message_async(request.text, stream=True)
-
-        async def stream_response_handler():
-            # On doit inspecter le premier chunk pour voir si c'est un tool call
-            try:
-                first_chunk = await response.__aiter__().__anext__()
-            except StopAsyncIteration:
-                 # Le stream est vide, ce qui peut arriver. On ne renvoie rien.
-                return
-
-            # Cas 1 : L'IA demande à utiliser un outil
-            if hasattr(first_chunk, 'function_calls') and first_chunk.function_calls:
-                tool_name = first_chunk.function_calls[0].name
-                print(f"Détection d'un appel à l'outil : {tool_name}")
-                yield f"TOOL_CALL:{tool_name}"
-                return # On arrête ici pour les tool calls
-
-            # Cas 2 : L'IA répond avec du texte
-            # Renvoyer le premier chunk qu'on a déjà consommé
-            if first_chunk.text:
-                yield first_chunk.text
+    async def stream_response_generator():
+        try:
+            model = genai.GenerativeModel(
+                model_name=os.getenv("GEMINI_MODEL_NAME", "gemini-pro"),
+                system_instruction=MASTER_PROMPT,
+                tools=[lancer_cascade_generation_tool]
+            )
             
-            # Continuer avec le reste du stream
+            chat_session = model.start_chat(history=request.history)
+            response = await chat_session.send_message_async(request.text, stream=True)
+
+            # Boucle de streaming unique et propre pour corriger le bug de répétition.
             async for chunk in response:
+                if hasattr(chunk, 'function_calls') and chunk.function_calls:
+                    tool_name = chunk.function_calls[0].name
+                    print(f"Détection d'un appel à l'outil : {tool_name}")
+                    yield f"TOOL_CALL:{tool_name}"
+                    break 
+                
                 if chunk.text:
                     yield chunk.text
                     await asyncio.sleep(0.01)
 
-        return StreamingResponse(stream_response_handler(), media_type="text/plain")
+        except Exception as e:
+            print(f"Une erreur est survenue dans l'endpoint chat : {e}")
+            yield f"Erreur critique inattendue: {str(e)}"
 
-    except Exception as e:
-        print(f"Une erreur est survenue dans l'endpoint chat : {e}")
-        async def error_generator(exc: Exception):
-            yield f"Erreur critique inattendue: {exc}"
-        return StreamingResponse(error_generator(e), media_type="text/plain") 
+    return StreamingResponse(stream_response_generator(), media_type="text/plain") 
