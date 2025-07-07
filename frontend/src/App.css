@@ -42,6 +42,8 @@ header {
   border-radius: 20px;
   line-height: 1.5;
   word-wrap: break-word;
+  display: flex;
+  margin-bottom: 15px;
 }
 
 .message p {
@@ -95,6 +97,16 @@ header {
 }
 
 .input-area button:disabled {
-  background-color: #a0c4ff;
+  background-color: #cccccc;
   cursor: not-allowed;
+}
+
+.input-area .generate-btn {
+  background-color: #f0f0f0;
+  color: #333;
+  margin-right: 8px;
+}
+
+.input-area .generate-btn:hover:not(:disabled) {
+  background-color: #e0e0e0;
 }

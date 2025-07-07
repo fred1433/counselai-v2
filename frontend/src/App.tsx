@@ -91,6 +91,37 @@ function App() {
     }
   };
 
+  const handleGenerateResponse = async () => {
+    if (isLoading) return;
+    setIsLoading(true);
+
+    const historyForApi: GeminiHistoryEntry[] = messages.map(msg => ({
+      role: msg.sender === 'user' ? 'user' : 'model',
+      parts: [{ text: msg.text }],
+    }));
+
+    try {
+      const response = await fetch('http://localhost:8000/api/generate_lawyer_response', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ history: historyForApi }),
+      });
+
+      if (!response.ok) {
+        throw new Error("La réponse du serveur n'est pas OK");
+      }
+
+      const data = await response.json();
+      setInput(data.response); // Met à jour le champ de saisie avec la réponse
+
+    } catch (error) {
+      console.error("Erreur lors de la génération de la réponse simulée:", error);
+      // Optionnel : afficher un message d'erreur à l'utilisateur
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && !isLoading) {
       sendMessage();
@@ -123,6 +154,9 @@ function App() {
           placeholder="Posez votre question..."
           disabled={isLoading}
         />
+        <button onClick={handleGenerateResponse} disabled={isLoading} className="generate-btn">
+          💡
+        </button>
         <button onClick={sendMessage} disabled={isLoading}>
           Envoyer
         </button>
