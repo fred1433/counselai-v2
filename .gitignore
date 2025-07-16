@@ -20,3 +20,9 @@ venv/
 /build
 /dist
 *.egg-info 
+
+# Ignorer les logs
+*.log
+
+# Ignorer les fichiers de test temporaires
+backend/test_*.py

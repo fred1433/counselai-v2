@@ -5,6 +5,7 @@ interface Message {
   id: number;
   sender: 'user' | 'ai';
   text: string;
+  className?: string;
 }
 
 interface GeminiHistoryEntry {
@@ -17,11 +18,13 @@ function App() {
     {
       id: 1, // ID fixe pour le premier message
       sender: 'ai',
-      text: "Bonjour. Pour ce nouveau mandat, quel est l'objectif stratégique principal que votre client cherche à atteindre ?"
+      text: "Hello. For this new engagement, what is the main strategic objective your client is seeking to achieve?"
     }
   ]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [showContract, setShowContract] = useState(false);
+  const [contractHtml, setContractHtml] = useState('');
   const chatWindowRef = useRef<HTMLDivElement>(null);
 
   // Fait défiler la fenêtre de chat vers le bas
@@ -49,10 +52,10 @@ function App() {
     }));
 
     try {
-      const response = await fetch('http://localhost:8000/api/chat', {
+      const response = await fetch('http://localhost:8001/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: input, history: historyForApi }), // On envoie l'historique
+        body: JSON.stringify({ text: userMessage.text, history: historyForApi }), // On envoie l'historique
       });
 
       if (!response.body) return;
@@ -75,6 +78,11 @@ function App() {
           setMessages(prev => prev.map(msg => 
             msg.id === aiMessageId ? { ...msg, text: `Lancement de la génération via l'outil : ${toolName}...` } : msg
           ));
+          
+          // Déclencher la génération du contrat
+          if (toolName === 'lancer_cascade_generation') {
+            await generateContract(historyForApi);
+          }
         } else {
           setMessages(prev => prev.map(msg => 
             msg.id === aiMessageId ? { ...msg, text: fullResponseText } : msg
@@ -101,7 +109,7 @@ function App() {
     }));
 
     try {
-      const response = await fetch('http://localhost:8000/api/generate_lawyer_response', {
+      const response = await fetch('http://localhost:8001/api/generate_lawyer_response', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ history: historyForApi }),
@@ -122,11 +130,68 @@ function App() {
     }
   };
 
+  const generateContract = async (history: GeminiHistoryEntry[]) => {
+    console.log("🚀 Déclenchement de la génération du contrat...");
+    
+    // Ajouter un message de statut
+    const statusMessageId = Date.now() + 100;
+    setMessages(prev => [...prev, {
+      id: statusMessageId,
+      sender: 'ai',
+      text: '📄 Génération du contrat en cours...'
+    }]);
+    
+    try {
+      const response = await fetch('http://localhost:8001/api/generate_contract', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ history }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Erreur lors de la génération du contrat");
+      }
+
+      const data = await response.json();
+      
+      if (data.status === 'success') {
+        // Afficher uniquement le contrat
+        setContractHtml(data.contract_html);
+        setShowContract(true);
+        
+      } else {
+        throw new Error("La génération a échoué");
+      }
+      
+    } catch (error) {
+      console.error("Erreur lors de la génération du contrat:", error);
+      setMessages(prev => prev.map(msg => 
+        msg.id === statusMessageId 
+          ? { ...msg, text: '❌ Erreur lors de la génération du contrat' }
+          : msg
+      ));
+    }
+  };
+
   const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && !isLoading) {
       sendMessage();
     }
   };
+
+  if (showContract) {
+    return (
+      <div className="contract-display-container">
+        <button className="back-to-chat" onClick={() => setShowContract(false)}>
+          ← Retour au chat
+        </button>
+        <div 
+          className="contract-html-content"
+          dangerouslySetInnerHTML={{ __html: contractHtml }}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="app-container">
@@ -135,7 +200,7 @@ function App() {
       </header>
       <div className="chat-window" ref={chatWindowRef}>
         {messages.map((msg) => (
-          <div key={msg.id} className={`message ${msg.sender}`}>
+          <div key={msg.id} className={`message ${msg.sender} ${msg.className || ''}`}>
             <p>{msg.text}</p>
           </div>
         ))}

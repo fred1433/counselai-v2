@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 import asyncio
 from google.generativeai.types import GenerationConfig, Tool, FunctionDeclaration
 from fastapi import HTTPException
+from contract_generator import generate_contract_cascade
 
 load_dotenv()
 
@@ -17,7 +18,7 @@ app = FastAPI()
 origins = [
     "http://localhost",
     "http://localhost:5173", # Port par défaut de Vite/React
-    "http://localhost:5174", # Port de repli que Vite utilise souvent
+    "http://localhost:5174", # Port configuré pour ce projet
 ]
 
 app.add_middleware(
@@ -54,33 +55,33 @@ lancer_cascade_generation_tool = Tool(
     ]
 )
 
-# Le "Master Prompt" qui guide l'IA
+# The Master Prompt that guides the AI
 MASTER_PROMPT = """
-Tu es "CounselAI", un assistant expert en droit des affaires spécialisé dans la rédaction de contrats.
-Ton objectif est d'aider les avocats à rédiger des documents juridiques complexes en suivant une méthodologie précise.
-Tu ne dois JAMAIS saluer l'utilisateur, mais répondre directement à sa requête, car un message d'accueil est déjà présent dans l'interface.
+You are "CounselAI", an expert business law assistant specializing in contract drafting.
+Your goal is to help lawyers draft complex legal documents following a precise methodology.
+You must NEVER greet the user, but respond directly to their request, as a welcome message is already present in the interface.
 
-Voici ton workflow :
-1.  **Dialogue et collecte :** Ton but est de collecter toutes les informations et les clauses clés nécessaires pour rédiger un document. Pose des questions précises pour clarifier chaque point en dialoguant avec l'utilisateur.
-2.  **Attente de confirmation :** Une fois que tu estimes avoir toutes les informations, demande à l'utilisateur une confirmation claire, comme "Pouvons-nous lancer la génération du document ?".
-3.  **Appel de l'outil :** Uniquement après avoir reçu cette confirmation explicite, tu DOIS appeler l'outil `lancer_cascade_generation`. N'écris rien d'autre dans ta réponse.
+Here is your workflow:
+1. **Dialogue and collection:** Your goal is to collect all the information and key clauses necessary to draft a document. Ask precise questions to clarify each point through dialogue with the user.
+2. **Await confirmation:** Once you believe you have all the information, ask the user for clear confirmation, such as "Shall we proceed with generating the document?".
+3. **Tool call:** Only after receiving this explicit confirmation, you MUST call the `lancer_cascade_generation` tool. Write nothing else in your response.
 
-Ne dévie jamais de ce workflow.
+Never deviate from this workflow.
 """
 
 LAWYER_SIMULATOR_PROMPT = """
-**Votre Rôle :**
-Vous êtes un avocat d'affaires expérimenté qui dialogue avec votre assistant IA (CounselAI).
-Votre assistant vous pose des questions pour rassembler toutes les informations nécessaires à la rédaction d'un contrat.
+**Your Role:**
+You are an experienced business lawyer in dialogue with your AI assistant (CounselAI).
+Your assistant asks you questions to gather all the information necessary to draft a contract.
 
-**Votre Mission :**
-Répondez **directement** à la **dernière question** de l'assistant.
-Fournissez des informations concrètes, plausibles et concises.
-N'ajoutez aucune salutation ou phrase superflue. Ne posez JAMAIS de questions en retour.
+**Your Mission:**
+Answer **directly** to the assistant's **last question**.
+Provide concrete, plausible, and concise information in English.
+Add no greetings or superfluous phrases. NEVER ask questions in return.
 
-**Exemple :**
-Si l'assistant demande : "Quel est le nom de la société cliente ?"
-Votre réponse doit être : "La société s'appelle Innovatech SAS."
+**Example:**
+If the assistant asks: "What is the name of the client company?"
+Your answer should be: "The company is called Innovatech LLC."
 """
 
 @app.get("/")
@@ -124,6 +125,37 @@ async def generate_lawyer_response(request: GenerateLawyerResponseRequest):
         print(f"Erreur lors de la génération de la réponse de l'avocat : {e}")
         raise HTTPException(status_code=500, detail="Erreur interne du serveur")
 
+class GenerateContractRequest(BaseModel):
+    history: list
+
+@app.post("/api/generate_contract")
+async def generate_contract(request: GenerateContractRequest):
+    """
+    Endpoint pour générer un contrat basé sur l'historique de conversation.
+    Utilise l'architecture en cascade avec des LLMs spécialisés.
+    """
+    print(f"🔥 /api/generate_contract appelé avec {len(request.history)} messages dans l'historique")
+    
+    try:
+        # Utiliser la cascade de génération avec le modèle depuis l'environnement
+        print(f"🚀 Lancement de generate_contract_cascade...")
+        result = await generate_contract_cascade(
+            conversation_history=request.history,
+            api_key=GEMINI_API_KEY,
+            model_name=os.getenv("GEMINI_MODEL_NAME", "gemini-pro")
+        )
+        
+        return {
+            "status": "success",
+            "contract_markdown": result['markdown'],
+            "contract_html": result['html'],
+            "extracted_data": result['data']
+        }
+    
+    except Exception as e:
+        print(f"Erreur lors de la génération du contrat : {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.post("/api/chat")
 async def chat(request: ChatRequest):
     """
@@ -142,13 +174,19 @@ async def chat(request: ChatRequest):
 
             # Boucle de streaming unique et propre pour corriger le bug de répétition.
             async for chunk in response:
-                if hasattr(chunk, 'function_calls') and chunk.function_calls:
-                    tool_name = chunk.function_calls[0].name
-                    print(f"Détection d'un appel à l'outil : {tool_name}")
-                    yield f"TOOL_CALL:{tool_name}"
-                    break 
+                # Vérifier d'abord les appels de fonction
+                if hasattr(chunk, 'candidates') and chunk.candidates:
+                    candidate = chunk.candidates[0]
+                    if hasattr(candidate.content, 'parts') and candidate.content.parts:
+                        for part in candidate.content.parts:
+                            if hasattr(part, 'function_call') and part.function_call:
+                                tool_name = part.function_call.name
+                                print(f"Détection d'un appel à l'outil : {tool_name}")
+                                yield f"TOOL_CALL:{tool_name}"
+                                return  # Arrêter le streaming après l'appel d'outil
                 
-                if chunk.text:
+                # Ensuite vérifier le texte
+                if hasattr(chunk, 'text') and chunk.text:
                     yield chunk.text
                     await asyncio.sleep(0.01)
 

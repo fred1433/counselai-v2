@@ -110,3 +110,52 @@ header {
 .input-area .generate-btn:hover:not(:disabled) {
   background-color: #e0e0e0;
 }
+
+.message.contract {
+  max-width: 90%;
+  background-color: #f8f9fa;
+  border: 2px solid #28a745;
+  padding: 20px;
+  font-size: 1.1rem;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  font-family: 'Courier New', monospace;
+}
+
+.message.contract strong {
+  color: #28a745;
+  font-size: 1.3rem;
+}
+
+.contract-display-container {
+  width: 100%;
+  height: 100vh;
+  background-color: #fff;
+  overflow: auto;
+  position: relative;
+}
+
+.back-to-chat {
+  position: fixed;
+  top: 20px;
+  left: 20px;
+  z-index: 1000;
+  padding: 10px 20px;
+  background-color: #007bff;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 1rem;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+.back-to-chat:hover {
+  background-color: #0056b3;
+}
+
+.contract-html-content {
+  padding: 40px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
