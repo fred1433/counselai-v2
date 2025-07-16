@@ -76,7 +76,7 @@ function App() {
           done = true; // On arrête de lire le stream
           const toolName = fullResponseText.split(':')[1];
           setMessages(prev => prev.map(msg => 
-            msg.id === aiMessageId ? { ...msg, text: `Lancement de la génération via l'outil : ${toolName}...` } : msg
+            msg.id === aiMessageId ? { ...msg, text: `Launching generation via tool: ${toolName}...` } : msg
           ));
           
           // Déclencher la génération du contrat
@@ -90,9 +90,9 @@ function App() {
         }
       }
     } catch (error) {
-      console.error("Erreur lors de la réception du stream:", error);
+      console.error("Error receiving stream:", error);
       setMessages(prev => prev.map(msg => 
-        msg.id === aiMessageId ? { ...msg, text: "Désolé, une erreur est survenue." } : msg
+        msg.id === aiMessageId ? { ...msg, text: "Sorry, an error occurred." } : msg
       ));
     } finally {
       setIsLoading(false);
@@ -123,7 +123,7 @@ function App() {
       setInput(data.response); // Met à jour le champ de saisie avec la réponse
 
     } catch (error) {
-      console.error("Erreur lors de la génération de la réponse simulée:", error);
+      console.error("Error generating simulated response:", error);
       // Optionnel : afficher un message d'erreur à l'utilisateur
     } finally {
       setIsLoading(false);
@@ -131,14 +131,14 @@ function App() {
   };
 
   const generateContract = async (history: GeminiHistoryEntry[]) => {
-    console.log("🚀 Déclenchement de la génération du contrat...");
+    console.log("🚀 Triggering contract generation...");
     
     // Ajouter un message de statut
     const statusMessageId = Date.now() + 100;
     setMessages(prev => [...prev, {
       id: statusMessageId,
       sender: 'ai',
-      text: '📄 Génération du contrat en cours...'
+      text: '📄 Generating contract...'
     }]);
     
     try {
@@ -149,7 +149,7 @@ function App() {
       });
 
       if (!response.ok) {
-        throw new Error("Erreur lors de la génération du contrat");
+        throw new Error("Error generating contract");
       }
 
       const data = await response.json();
@@ -160,14 +160,14 @@ function App() {
         setShowContract(true);
         
       } else {
-        throw new Error("La génération a échoué");
+        throw new Error("Generation failed");
       }
       
     } catch (error) {
-      console.error("Erreur lors de la génération du contrat:", error);
+      console.error("Error generating contract:", error);
       setMessages(prev => prev.map(msg => 
         msg.id === statusMessageId 
-          ? { ...msg, text: '❌ Erreur lors de la génération du contrat' }
+          ? { ...msg, text: '❌ Error generating contract' }
           : msg
       ));
     }
@@ -183,7 +183,7 @@ function App() {
     return (
       <div className="contract-display-container">
         <button className="back-to-chat" onClick={() => setShowContract(false)}>
-          ← Retour au chat
+          ← Back to chat
         </button>
         <div 
           className="contract-html-content"
@@ -211,20 +211,22 @@ function App() {
         )}
       </div>
       <div className="input-area">
-        <input
-          type="text"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyPress={handleKeyPress}
-          placeholder="Posez votre question..."
-          disabled={isLoading}
-        />
-        <button onClick={handleGenerateResponse} disabled={isLoading} className="generate-btn">
-          💡
-        </button>
-        <button onClick={sendMessage} disabled={isLoading}>
-          Envoyer
-        </button>
+        <div className="input-area-inner">
+          <input
+            type="text"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyPress={handleKeyPress}
+            placeholder="Ask your question..."
+            disabled={isLoading}
+          />
+          <button onClick={handleGenerateResponse} disabled={isLoading} className="generate-btn">
+            💡
+          </button>
+          <button onClick={sendMessage} disabled={isLoading}>
+            Send
+          </button>
+        </div>
       </div>
     </div>
   );
