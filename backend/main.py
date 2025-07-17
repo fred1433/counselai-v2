@@ -57,16 +57,16 @@ lancer_cascade_generation_tool = Tool(
 
 # The Master Prompt that guides the AI
 MASTER_PROMPT = """
-You are "CounselAI", an expert business law assistant specializing in contract drafting.
-Your goal is to help lawyers draft complex legal documents following a precise methodology.
-You must NEVER greet the user, but respond directly to their request, as a welcome message is already present in the interface.
+You are an expert business law assistant specializing in contract top tier contract drafting.
+Your goal is to help top tier lawyers draft complex legal documents following a precise and complete methodology.
+Don't loose time in greeting and politeness with the lawyers, but respond directly to their request, as a first message is already present in the interface, so the conversation is always already begun with the initial message: "For this new mandate, what is the primary strategic objective your client is seeking to achieve?" So the first message you will receive from the lawyer will probably answer this question.
 
-Here is your workflow:
-1. **Dialogue and collection:** Your goal is to collect all the information and key clauses necessary to draft a document. Ask precise questions to clarify each point through dialogue with the user.
-2. **Await confirmation:** Once you believe you have all the information, ask the user for clear confirmation, such as "Shall we proceed with generating the document?".
+1. Dialogue and collection Your goal is to collect ALL information necessary to write a very complete, professional legal document, not a draft.
+
+(Of course, this includes party details, addresses, signatories, and every element required for a binding, but you must start with the more clever questions)
+
+2. **Await confirmation:** Once you have gathered absolutely all essential information, provide a comprehensive summary and ask for clear confirmation, such as "Shall we proceed with generating the document?".
 3. **Tool call:** Only after receiving this explicit confirmation, you MUST call the `lancer_cascade_generation` tool. Write nothing else in your response.
-
-Never deviate from this workflow.
 """
 
 LAWYER_SIMULATOR_PROMPT = """
@@ -75,13 +75,9 @@ You are an experienced business lawyer in dialogue with your AI assistant (Couns
 Your assistant asks you questions to gather all the information necessary to draft a contract.
 
 **Your Mission:**
-Answer **directly** to the assistant's **last question**.
+Answer **directly** to the assistant
 Provide concrete, plausible, and concise information in English.
 Add no greetings or superfluous phrases. NEVER ask questions in return.
-
-**Example:**
-If the assistant asks: "What is the name of the client company?"
-Your answer should be: "The company is called Innovatech LLC."
 """
 
 @app.get("/")
@@ -174,21 +170,31 @@ async def chat(request: ChatRequest):
 
             # Boucle de streaming unique et propre pour corriger le bug de répétition.
             async for chunk in response:
-                # Vérifier d'abord les appels de fonction
-                if hasattr(chunk, 'candidates') and chunk.candidates:
-                    candidate = chunk.candidates[0]
-                    if hasattr(candidate.content, 'parts') and candidate.content.parts:
-                        for part in candidate.content.parts:
-                            if hasattr(part, 'function_call') and part.function_call:
-                                tool_name = part.function_call.name
-                                print(f"Détection d'un appel à l'outil : {tool_name}")
-                                yield f"TOOL_CALL:{tool_name}"
-                                return  # Arrêter le streaming après l'appel d'outil
-                
-                # Ensuite vérifier le texte
-                if hasattr(chunk, 'text') and chunk.text:
-                    yield chunk.text
-                    await asyncio.sleep(0.01)
+                try:
+                    # Vérifier d'abord les appels de fonction
+                    if hasattr(chunk, 'candidates') and chunk.candidates:
+                        candidate = chunk.candidates[0]
+                        if hasattr(candidate.content, 'parts') and candidate.content.parts:
+                            for part in candidate.content.parts:
+                                if hasattr(part, 'function_call') and part.function_call:
+                                    tool_name = part.function_call.name
+                                    print(f"Détection d'un appel à l'outil : {tool_name}")
+                                    yield f"TOOL_CALL:{tool_name}"
+                                    return  # Arrêter le streaming après l'appel d'outil
+                    
+                    # Ensuite vérifier le texte
+                    if hasattr(chunk, 'text'):
+                        try:
+                            text = chunk.text
+                            if text:
+                                yield text
+                                await asyncio.sleep(0.01)
+                        except Exception as text_error:
+                            # Ignorer les erreurs de texte et continuer
+                            pass
+                except Exception as chunk_error:
+                    # Ignorer les chunks problématiques et continuer
+                    pass
 
         except Exception as e:
             print(f"Une erreur est survenue dans l'endpoint chat : {e}")

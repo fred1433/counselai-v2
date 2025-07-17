@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import ReactMarkdown from 'react-markdown';
 import './App.css';
 
 interface Message {
@@ -18,7 +19,7 @@ function App() {
     {
       id: 1, // ID fixe pour le premier message
       sender: 'ai',
-      text: "Hello. For this new engagement, what is the main strategic objective your client is seeking to achieve?"
+      text: "For this new mandate, what is the primary strategic objective your client is seeking to achieve?"
     }
   ]);
   const [input, setInput] = useState('');
@@ -75,9 +76,9 @@ function App() {
         if (fullResponseText.startsWith("TOOL_CALL:")) {
           done = true; // On arrête de lire le stream
           const toolName = fullResponseText.split(':')[1];
-          setMessages(prev => prev.map(msg => 
-            msg.id === aiMessageId ? { ...msg, text: `Launching generation via tool: ${toolName}...` } : msg
-          ));
+          
+          // Supprimer le message temporaire de l'assistant et déclencher directement la génération
+          setMessages(prev => prev.filter(msg => msg.id !== aiMessageId));
           
           // Déclencher la génération du contrat
           if (toolName === 'lancer_cascade_generation') {
@@ -133,12 +134,12 @@ function App() {
   const generateContract = async (history: GeminiHistoryEntry[]) => {
     console.log("🚀 Triggering contract generation...");
     
-    // Ajouter un message de statut
+    // Ajouter un message de statut professionnel
     const statusMessageId = Date.now() + 100;
     setMessages(prev => [...prev, {
       id: statusMessageId,
       sender: 'ai',
-      text: '📄 Generating contract...'
+      text: '⚖️ Drafting your legal document...\n\nThis may take a moment as we ensure all terms are properly structured and legally sound.'
     }]);
     
     try {
@@ -173,10 +174,18 @@ function App() {
     }
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && !isLoading) {
+  const handleKeyPress = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey && !isLoading) {
+      e.preventDefault();
       sendMessage();
     }
+  };
+
+  const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setInput(e.target.value);
+    // Auto-resize textarea
+    e.target.style.height = 'auto';
+    e.target.style.height = Math.min(e.target.scrollHeight, 150) + 'px';
   };
 
   if (showContract) {
@@ -201,7 +210,11 @@ function App() {
       <div className="chat-window" ref={chatWindowRef}>
         {messages.map((msg) => (
           <div key={msg.id} className={`message ${msg.sender} ${msg.className || ''}`}>
-            <p>{msg.text}</p>
+            {msg.sender === 'ai' ? (
+              <ReactMarkdown>{msg.text}</ReactMarkdown>
+            ) : (
+              <p>{msg.text}</p>
+            )}
           </div>
         ))}
         {isLoading && messages[messages.length - 1]?.sender === 'user' && (
@@ -212,13 +225,13 @@ function App() {
       </div>
       <div className="input-area">
         <div className="input-area-inner">
-          <input
-            type="text"
+          <textarea
             value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyPress={handleKeyPress}
-            placeholder="Ask your question..."
+            onChange={handleTextareaChange}
+            onKeyDown={handleKeyPress}
+            placeholder="Type your response..."
             disabled={isLoading}
+            rows={1}
           />
           <button onClick={handleGenerateResponse} disabled={isLoading} className="generate-btn">
             💡

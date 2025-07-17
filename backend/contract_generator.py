@@ -140,12 +140,12 @@ class ContractGenerator:
         
         # Premium prompt adapted for all types of legal documents
         generation_prompt = custom_prompt or """
-You are an internationally renowned business lawyer specializing in drafting complex, high-value legal documents.
+You are the best business lawyer specializing in drafting high-value legal documents.
 
-COMPLETE CONVERSATION BETWEEN LAWYER AND ASSISTANT:
+COMPLETE PREVIOUS CONVERSATION BETWEEN LAWYER AND AI ASSISTANT:
 {full_conversation}
 
-Based on this conversation, draft an exceptional legal document in English. The document should demonstrate the highest level of legal sophistication and professionalism.
+Based on this conversation, draft an exceptional legal document in English. The document should demonstrate the highest level of legal sophistication and professionalism and be absolutely COMPLETE, ready to deliver.
 
 Key requirements:
 - Exceptional quality worthy of top-tier law firms
@@ -179,23 +179,7 @@ Begin directly with the document title.
         """
         # Prompt HTML premium adapté pour tout format d'entrée
         formatting_prompt = html_prompt or """
-You are an expert AI assistant specialized in creating professional, self-contained HTML documents from legal texts.
-
-Your task is to convert the following legal document (which may or may not be in Markdown format) into a single, complete, and beautifully formatted HTML file.
-
-The final HTML file must be:
-1.  **Self-Contained:** It must include all necessary HTML tags (`<html>`, `<head>`, `<body>`, etc.).
-2.  **Professionally Styled:** It must contain high-quality, embedded CSS within a `<style>` tag in the `<head>`. The styling should be appropriate for a formal legal document (e.g., clear typography, good spacing, professional fonts like Times New Roman or similar).
-3.  **Structurally Correct:** You must intelligently identify and format the document structure:
-    *   Main titles should become `<h1>`.
-    *   Section headings (like ARTICLE... or similar) should become `<h2>`.
-    *   Sub-section headings should become `<h3>`.
-    *   Important text should be wrapped in `<strong>` tags where appropriate.
-    *   Paragraphs should become `<p>` tags.
-    *   The overall content should be wrapped in a main container `<div class="contract-container">` for better styling.
-    *   Add professional touches like a header with document title, page margins, and potentially a footer.
-
-Your output must be ONLY the final, complete HTML code. Do not include any commentary or markdown formatting around the HTML code block. The output should be ready to be saved directly into an .html file and opened in a browser.
+You are an expert AI assistant specialized in creating professional, self-contained HTML documents. Your task is to convert the following legal document into a single, high-quality HTML file. The result should be clean, professionally styled, and easily readable and include ALL the input text content. The output must be ONLY the final, complete HTML code, with CSS embedded in the head. It should be ready to be saved directly into an .html file. Do not include any commentary.
 
 ---
 **INPUT LEGAL DOCUMENT (to be converted to HTML):**
@@ -207,7 +191,18 @@ Your output must be ONLY the final, complete HTML code. Do not include any comme
         
         prompt = formatting_prompt.format(contract=contract_text)
         response = await model.generate_content_async(prompt)
-        return response.text
+        html_content = response.text
+        
+        # Nettoyer les balises markdown de code si présentes
+        if html_content.strip().startswith('```html'):
+            html_content = html_content.strip()[7:]  # Enlever ```html
+        elif html_content.strip().startswith('```'):
+            html_content = html_content.strip()[3:]  # Enlever ```
+            
+        if html_content.strip().endswith('```'):
+            html_content = html_content.strip()[:-3]  # Enlever ``` à la fin
+            
+        return html_content.strip()
 
 # Fonction principale pour la cascade de génération
 async def generate_contract_cascade(conversation_history: List[Dict],
