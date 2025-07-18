@@ -6,7 +6,7 @@ import google.generativeai as genai
 import os
 from dotenv import load_dotenv
 import asyncio
-from google.generativeai.types import GenerationConfig, Tool, FunctionDeclaration
+from google.generativeai.types import GenerationConfig
 from fastapi import HTTPException
 from contract_generator import generate_contract_cascade
 
@@ -45,15 +45,6 @@ class ChatRequest(BaseModel):
 class GenerateLawyerResponseRequest(BaseModel):
     history: list = []
 
-# Définition de notre outil personnalisé pour la cascade de génération
-lancer_cascade_generation_tool = Tool(
-    function_declarations=[
-        FunctionDeclaration(
-            name="lancer_cascade_generation",
-            description="À n'utiliser que lorsque l'utilisateur a fourni toutes les informations nécessaires et confirme explicitement vouloir générer le document final."
-        )
-    ]
-)
 
 # The Master Prompt that guides the AI
 MASTER_PROMPT = """
@@ -66,18 +57,26 @@ Don't loose time in greeting and politeness with the lawyers, but respond direct
 (Of course, this includes party details, addresses, signatories, and every element required for a binding, but you must start with the more clever questions)
 
 2. **Await confirmation:** Once you have gathered absolutely all essential information, provide a comprehensive summary and ask for clear confirmation, such as "Shall we proceed with generating the document?".
-3. **Tool call:** Only after receiving this explicit confirmation, you MUST call the `lancer_cascade_generation` tool. Write nothing else in your response.
+3. **Tool call:** After receiving confirmation from the lawyer, respond ONLY with: {"action": "generate_document"}
 """
 
-LAWYER_SIMULATOR_PROMPT = """
-**Your Role:**
-You are an experienced business lawyer in dialogue with your AI assistant (CounselAI).
-Your assistant asks you questions to gather all the information necessary to draft a contract.
+LAWYER_SIMULATOR_PROMPT = """You are a top-tier business lawyer handling high-value transactions. Your AI assistant asks you questions to draft legal documents. Always provide concrete, realistic answers - never say information is missing. Invent plausible high-value business scenarios. Be concise."""
 
-**Your Mission:**
-Answer **directly** to the assistant
-Provide concrete, plausible, and concise information in English.
-Add no greetings or superfluous phrases. NEVER ask questions in return.
+CONTRACT_MODIFICATION_PROMPT = """
+You are a legal document modification expert. You help lawyers modify contracts efficiently.
+
+You receive:
+1. The current HTML of a legal document (which may include manual edits)
+2. A modification request from the lawyer
+
+Your task:
+- Analyze the modification request
+- Provide clear guidance on how to implement the change
+- If the modification is simple and specific, provide the exact text to change
+- If the modification is complex, explain what needs to be changed and why
+- Always maintain legal precision and professionalism
+
+Be concise and practical. Focus on actionable advice.
 """
 
 @app.get("/")
@@ -104,6 +103,10 @@ async def generate_lawyer_response(request: GenerateLawyerResponseRequest):
     """
     Génère une réponse d'avocat simulée basée sur l'historique de la conversation.
     """
+    print(f"\n🔍 Historique reçu par le simulateur d'avocat:")
+    for i, msg in enumerate(request.history):
+        print(f"  [{i}] {msg['role']}: {msg['parts'][0]['text'][:100]}...")
+    
     try:
         # Utilise un modèle dédié avec le prompt du simulateur d'avocat
         lawyer_model = genai.GenerativeModel(
@@ -113,7 +116,19 @@ async def generate_lawyer_response(request: GenerateLawyerResponseRequest):
         
         chat_session = lawyer_model.start_chat(history=request.history)
         # On ne streame pas, on veut la réponse complète directement
-        response = await chat_session.send_message_async("Répondez à la dernière question de l'assistant en vous basant sur l'historique.")
+        # Extraire la dernière question de l'assistant
+        last_ai_question = None
+        for msg in reversed(request.history):
+            if msg['role'] == 'model':
+                last_ai_question = msg['parts'][0]['text']
+                break
+        
+        print(f"\n📝 Dernière question de l'assistant: {last_ai_question[:200]}...")
+        
+        prompt = f"Based on the conversation history, answer this specific question from the assistant: {last_ai_question}"
+        response = await chat_session.send_message_async(prompt)
+        
+        print(f"\n✅ Réponse générée: {response.text[:200]}...")
         
         return {"response": response.text}
 
@@ -123,6 +138,11 @@ async def generate_lawyer_response(request: GenerateLawyerResponseRequest):
 
 class GenerateContractRequest(BaseModel):
     history: list
+
+class ModifyContractRequest(BaseModel):
+    current_html: str
+    modification_request: str
+    history: list = []
 
 @app.post("/api/generate_contract")
 async def generate_contract(request: GenerateContractRequest):
@@ -152,6 +172,40 @@ async def generate_contract(request: GenerateContractRequest):
         print(f"Erreur lors de la génération du contrat : {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.post("/api/modify_contract")
+async def modify_contract(request: ModifyContractRequest):
+    """
+    Endpoint pour modifier un contrat existant basé sur les demandes de l'utilisateur.
+    """
+    try:
+        # Créer un modèle avec le prompt de modification
+        modification_model = genai.GenerativeModel(
+            model_name=os.getenv("GEMINI_MODEL_NAME", "gemini-pro"),
+            system_instruction=CONTRACT_MODIFICATION_PROMPT
+        )
+        
+        # Préparer le contexte pour l'assistant
+        context = f"""
+Current HTML Document:
+{request.current_html}
+
+Modification Request:
+{request.modification_request}
+"""
+        
+        # Si historique disponible, l'inclure
+        if request.history:
+            chat_session = modification_model.start_chat(history=request.history)
+            response = await chat_session.send_message_async(context)
+        else:
+            response = await modification_model.generate_content_async(context)
+        
+        return {"response": response.text}
+        
+    except Exception as e:
+        print(f"Erreur lors de la modification du contrat : {e}")
+        raise HTTPException(status_code=500, detail="Erreur interne du serveur")
+
 @app.post("/api/chat")
 async def chat(request: ChatRequest):
     """
@@ -161,11 +215,26 @@ async def chat(request: ChatRequest):
         try:
             model = genai.GenerativeModel(
                 model_name=os.getenv("GEMINI_MODEL_NAME", "gemini-pro"),
-                system_instruction=MASTER_PROMPT,
-                tools=[lancer_cascade_generation_tool]
+                system_instruction=MASTER_PROMPT
             )
             
             chat_session = model.start_chat(history=request.history)
+            
+            print(f"\n📨 Message reçu de l'utilisateur: {request.text[:200]}...")
+            
+            # Vérifier si c'est une confirmation pour générer le document
+            confirmation_keywords = ["yes", "proceed", "go ahead", "please generate", "confirmed", "correct", "accurate"]
+            user_text_lower = request.text.lower()
+            is_confirmation = any(keyword in user_text_lower for keyword in confirmation_keywords)
+            
+            if is_confirmation:
+                print(f"✅ Confirmation détectée! Vérification du contexte...")
+                # Vérifier si on a assez d'infos dans l'historique
+                has_summary = any("shall we proceed" in msg.get('parts', [{}])[0].get('text', '').lower() 
+                                 for msg in request.history if msg.get('role') == 'model')
+                if has_summary:
+                    print(f"📋 Résumé trouvé dans l'historique, activation de l'outil...")
+            
             response = await chat_session.send_message_async(request.text, stream=True)
 
             # Boucle de streaming unique et propre pour corriger le bug de répétition.
@@ -178,7 +247,7 @@ async def chat(request: ChatRequest):
                             for part in candidate.content.parts:
                                 if hasattr(part, 'function_call') and part.function_call:
                                     tool_name = part.function_call.name
-                                    print(f"Détection d'un appel à l'outil : {tool_name}")
+                                    print(f"🛠️ Détection d'un appel à l'outil : {tool_name}")
                                     yield f"TOOL_CALL:{tool_name}"
                                     return  # Arrêter le streaming après l'appel d'outil
                     

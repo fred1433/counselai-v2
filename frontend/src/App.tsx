@@ -26,6 +26,11 @@ function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [showContract, setShowContract] = useState(false);
   const [contractHtml, setContractHtml] = useState('');
+  const [editMode, setEditMode] = useState(false);
+  const [showModificationChat, setShowModificationChat] = useState(false);
+  const [modificationMessages, setModificationMessages] = useState<Message[]>([]);
+  const [modificationInput, setModificationInput] = useState('');
+  const contractRef = useRef<HTMLDivElement>(null);
   const chatWindowRef = useRef<HTMLDivElement>(null);
 
   // Fait défiler la fenêtre de chat vers le bas
@@ -72,7 +77,7 @@ function App() {
         const chunk = decoder.decode(value, { stream: true });
         fullResponseText += chunk;
         
-        // Détection du tool call
+        // Détection du tool call (ancienne méthode)
         if (fullResponseText.startsWith("TOOL_CALL:")) {
           done = true; // On arrête de lire le stream
           const toolName = fullResponseText.split(':')[1];
@@ -84,6 +89,12 @@ function App() {
           if (toolName === 'lancer_cascade_generation') {
             await generateContract(historyForApi);
           }
+        } 
+        // Nouvelle détection simplifiée
+        else if (fullResponseText.includes('{"action": "generate_document"}') || fullResponseText.includes('{"action": "generate_contract"}')) {
+          done = true;
+          setMessages(prev => prev.filter(msg => msg.id !== aiMessageId));
+          await generateContract(historyForApi);
         } else {
           setMessages(prev => prev.map(msg => 
             msg.id === aiMessageId ? { ...msg, text: fullResponseText } : msg
@@ -133,6 +144,7 @@ function App() {
 
   const generateContract = async (history: GeminiHistoryEntry[]) => {
     console.log("🚀 Triggering contract generation...");
+    console.log("📝 History length:", history.length);
     
     // Ajouter un message de statut professionnel
     const statusMessageId = Date.now() + 100;
@@ -188,16 +200,170 @@ function App() {
     e.target.style.height = Math.min(e.target.scrollHeight, 150) + 'px';
   };
 
+  const toggleEditMode = () => {
+    if (contractRef.current) {
+      const newEditMode = !editMode;
+      setEditMode(newEditMode);
+      
+      // Toggle contentEditable on all elements
+      const elements = contractRef.current.querySelectorAll('p, h1, h2, h3, li, td, th');
+      elements.forEach(el => {
+        (el as HTMLElement).contentEditable = newEditMode ? 'true' : 'false';
+      });
+      
+      if (!newEditMode) {
+        // Save the edited HTML
+        setContractHtml(contractRef.current.innerHTML);
+      }
+    }
+  };
+
+  // Gestionnaire pour le copier-coller - DOIT être avant tous les returns
+  useEffect(() => {
+    const handleCopy = (e: ClipboardEvent) => {
+      const selection = window.getSelection();
+      if (!selection || selection.rangeCount === 0) return;
+      
+      const range = selection.getRangeAt(0);
+      const container = document.createElement('div');
+      container.appendChild(range.cloneContents());
+      
+      // Parcourir tous les messages sélectionnés
+      const messages = container.querySelectorAll('.message');
+      let formattedText = '';
+      
+      messages.forEach((msg) => {
+        const isUser = msg.classList.contains('user');
+        const role = isUser ? 'User: ' : 'Assistant: ';
+        const text = msg.textContent || '';
+        formattedText += role + text + '\n\n';
+      });
+      
+      if (formattedText) {
+        e.clipboardData?.setData('text/plain', formattedText);
+        e.preventDefault();
+      }
+    };
+    
+    document.addEventListener('copy', handleCopy);
+    return () => document.removeEventListener('copy', handleCopy);
+  }, []);
+
+  const handleModificationSubmit = async () => {
+    if (!modificationInput.trim() || isLoading) return;
+    
+    const userMessage: Message = { 
+      id: Date.now(), 
+      sender: 'user', 
+      text: modificationInput 
+    };
+    setModificationMessages(prev => [...prev, userMessage]);
+    setModificationInput('');
+    setIsLoading(true);
+    
+    try {
+      const response = await fetch('http://localhost:8001/api/modify_contract', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          current_html: contractRef.current?.innerHTML || contractHtml,
+          modification_request: modificationInput,
+          history: modificationMessages
+        }),
+      });
+      
+      const data = await response.json();
+      
+      const aiMessage: Message = {
+        id: Date.now() + 1,
+        sender: 'ai',
+        text: data.response
+      };
+      setModificationMessages(prev => [...prev, aiMessage]);
+      
+      if (data.modified_html) {
+        setContractHtml(data.modified_html);
+      }
+    } catch (error) {
+      console.error("Error modifying contract:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   if (showContract) {
     return (
       <div className="contract-display-container">
-        <button className="back-to-chat" onClick={() => setShowContract(false)}>
-          ← Back to chat
-        </button>
+        <div className="contract-controls">
+          <button className="back-to-chat" onClick={() => setShowContract(false)}>
+            ← Back to chat
+          </button>
+          <button className="edit-button" onClick={toggleEditMode}>
+            {editMode ? '💾 Save' : '✏️ Edit'}
+          </button>
+        </div>
+        
+        {editMode && (
+          <div className="edit-mode-banner">
+            Edit mode activated - Click any text to modify
+          </div>
+        )}
+        
         <div 
-          className="contract-html-content"
+          ref={contractRef}
+          className={`contract-html-content ${editMode ? 'edit-mode' : ''}`}
           dangerouslySetInnerHTML={{ __html: contractHtml }}
         />
+        
+        <button 
+          className="modification-chat-button"
+          onClick={() => setShowModificationChat(!showModificationChat)}
+        >
+          💬
+        </button>
+        
+        {showModificationChat && (
+          <div className="modification-chat-panel">
+            <div className="modification-chat-header">
+              <h3>Contract Modifications</h3>
+              <button onClick={() => setShowModificationChat(false)}>✕</button>
+            </div>
+            <div className="modification-chat-messages">
+              {modificationMessages.length === 0 && (
+                <p className="modification-chat-welcome">
+                  How can I help you modify this contract?
+                </p>
+              )}
+              {modificationMessages.map((msg) => (
+                <div key={msg.id} className={`message ${msg.sender}`}>
+                  {msg.sender === 'ai' ? (
+                    <ReactMarkdown>{msg.text}</ReactMarkdown>
+                  ) : (
+                    <p>{msg.text}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+            <div className="modification-chat-input">
+              <textarea
+                value={modificationInput}
+                onChange={(e) => setModificationInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey && !isLoading) {
+                    e.preventDefault();
+                    handleModificationSubmit();
+                  }
+                }}
+                placeholder="Describe the modification..."
+                disabled={isLoading}
+                rows={1}
+              />
+              <button onClick={handleModificationSubmit} disabled={isLoading}>
+                Send
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -210,11 +376,7 @@ function App() {
       <div className="chat-window" ref={chatWindowRef}>
         {messages.map((msg) => (
           <div key={msg.id} className={`message ${msg.sender} ${msg.className || ''}`}>
-            {msg.sender === 'ai' ? (
-              <ReactMarkdown>{msg.text}</ReactMarkdown>
-            ) : (
-              <p>{msg.text}</p>
-            )}
+            <ReactMarkdown>{msg.text}</ReactMarkdown>
           </div>
         ))}
         {isLoading && messages[messages.length - 1]?.sender === 'user' && (

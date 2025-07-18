@@ -25,4 +25,5 @@ venv/
 *.log
 
 # Ignorer les fichiers de test temporaires
-backend/test_*.py
+backend/test_*.py.DS_Store
+backend/.DS_Store
