@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import './App.css';
+import { MOCK_CONTRACT_HTML } from './mockContract';
 
 interface Message {
   id: number;
@@ -37,6 +38,29 @@ function App() {
   useEffect(() => {
     chatWindowRef.current?.scrollTo({ top: chatWindowRef.current.scrollHeight, behavior: 'smooth' });
   }, [messages]);
+
+  // Charger le contrat sauvegardé au démarrage
+  useEffect(() => {
+    const savedContract = localStorage.getItem('counselai_contract');
+    const savedTimestamp = localStorage.getItem('counselai_contract_timestamp');
+    
+    if (savedContract && savedTimestamp) {
+      const timestamp = new Date(savedTimestamp);
+      const now = new Date();
+      const hoursSince = (now.getTime() - timestamp.getTime()) / (1000 * 60 * 60);
+      
+      // Si le contrat a moins de 24h, proposer de le restaurer
+      if (hoursSince < 24) {
+        const restore = window.confirm(
+          `Un contrat a été sauvegardé ${Math.round(hoursSince)} heures auparavant. Voulez-vous le restaurer ?`
+        );
+        if (restore) {
+          setContractHtml(savedContract);
+          setShowContract(true);
+        }
+      }
+    }
+  }, []);
 
   const sendMessage = async () => {
     if (!input.trim() || isLoading) return;
@@ -205,15 +229,16 @@ function App() {
       const newEditMode = !editMode;
       setEditMode(newEditMode);
       
-      // Toggle contentEditable on all elements
-      const elements = contractRef.current.querySelectorAll('p, h1, h2, h3, li, td, th');
-      elements.forEach(el => {
-        (el as HTMLElement).contentEditable = newEditMode ? 'true' : 'false';
-      });
+      // Make the entire contract container editable
+      contractRef.current.contentEditable = newEditMode ? 'true' : 'false';
       
       if (!newEditMode) {
         // Save the edited HTML
-        setContractHtml(contractRef.current.innerHTML);
+        const updatedHtml = contractRef.current.innerHTML;
+        setContractHtml(updatedHtml);
+        // Save to localStorage
+        localStorage.setItem('counselai_contract', updatedHtml);
+        localStorage.setItem('counselai_contract_timestamp', new Date().toISOString());
       }
     }
   };
@@ -385,6 +410,29 @@ function App() {
           </div>
         )}
       </div>
+      {/* Dev button to load mock contract */}
+      {process.env.NODE_ENV === 'development' && (
+        <button 
+          onClick={() => {
+            setContractHtml(MOCK_CONTRACT_HTML);
+            setShowContract(true);
+          }}
+          style={{
+            position: 'fixed',
+            bottom: '20px',
+            right: '20px',
+            padding: '10px 20px',
+            backgroundColor: '#28a745',
+            color: 'white',
+            border: 'none',
+            borderRadius: '5px',
+            cursor: 'pointer',
+            zIndex: 1000
+          }}
+        >
+          🧪 Load Mock Contract
+        </button>
+      )}
       <div className="input-area">
         <div className="input-area-inner">
           <textarea
