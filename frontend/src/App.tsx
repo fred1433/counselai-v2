@@ -31,6 +31,14 @@ function App() {
   const [showModificationChat, setShowModificationChat] = useState(false);
   const [modificationMessages, setModificationMessages] = useState<Message[]>([]);
   const [modificationInput, setModificationInput] = useState('');
+  const [generationProgress, setGenerationProgress] = useState<{
+    step: number;
+    message: string;
+  } | null>(null);
+  const [showSettings, setShowSettings] = useState(false);
+  const [selectedModel, setSelectedModel] = useState(() => {
+    return localStorage.getItem('counselai_model') || 'gemini-2.5-pro';
+  });
   const contractRef = useRef<HTMLDivElement>(null);
   const chatWindowRef = useRef<HTMLDivElement>(null);
 
@@ -52,7 +60,7 @@ function App() {
       // Si le contrat a moins de 24h, proposer de le restaurer
       if (hoursSince < 24) {
         const restore = window.confirm(
-          `Un contrat a été sauvegardé ${Math.round(hoursSince)} heures auparavant. Voulez-vous le restaurer ?`
+          `A contract was saved ${Math.round(hoursSince)} hours ago. Would you like to restore it?`
         );
         if (restore) {
           setContractHtml(savedContract);
@@ -85,7 +93,11 @@ function App() {
       const response = await fetch('http://localhost:8001/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: userMessage.text, history: historyForApi }), // On envoie l'historique
+        body: JSON.stringify({ 
+          text: userMessage.text, 
+          history: historyForApi,
+          model_name: selectedModel 
+        }),
       });
 
       if (!response.body) return;
@@ -148,7 +160,10 @@ function App() {
       const response = await fetch('http://localhost:8001/api/generate_lawyer_response', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ history: historyForApi }),
+        body: JSON.stringify({ 
+          history: historyForApi,
+          model_name: selectedModel 
+        }),
       });
 
       if (!response.ok) {
@@ -170,19 +185,57 @@ function App() {
     console.log("🚀 Triggering contract generation...");
     console.log("📝 History length:", history.length);
     
-    // Ajouter un message de statut professionnel
+    // Message initial avec progression
     const statusMessageId = Date.now() + 100;
+    let progressText = '📝 **Step 1/2**: Generating legal content...\n\n⏳ Analyzing and drafting...';
+    
     setMessages(prev => [...prev, {
       id: statusMessageId,
       sender: 'ai',
-      text: '⚖️ Drafting your legal document...\n\nThis may take a moment as we ensure all terms are properly structured and legally sound.'
+      text: progressText
     }]);
+    
+    // Déclaration des timers
+    let timer1: NodeJS.Timeout;
+    let timer2: NodeJS.Timeout;
+    
+    // Updates intermédiaires pour montrer l'activité
+    timer1 = setTimeout(() => {
+      progressText = '📝 **Step 1/2**: Generating legal content...\n\n⏳ Structuring clauses and legal terms...';
+      setMessages(prev => prev.map(msg => 
+        msg.id === statusMessageId 
+        ? { ...msg, text: progressText }
+        : msg
+      ));
+    }, 15000);
+    
+    timer2 = setTimeout(() => {
+      progressText = '📝 **Step 1/2**: Generating legal content...\n\n⏳ Finalizing content and verifications...';
+      setMessages(prev => prev.map(msg => 
+        msg.id === statusMessageId 
+        ? { ...msg, text: progressText }
+        : msg
+      ));
+    }, 30000);
+    
+    // Passage à l'étape 2 après 40 secondes
+    const progressTimer = setTimeout(() => {
+      progressText = '📝 ~~Step 1/2: Generating legal content...~~ ✓\n\n🎨 **Step 2/2**: Professional formatting...\n\n⏳ Applying HTML formatting and styles...';
+      setMessages(prev => prev.map(msg => 
+        msg.id === statusMessageId 
+          ? { ...msg, text: progressText }
+          : msg
+      ));
+    }, 40000);
     
     try {
       const response = await fetch('http://localhost:8001/api/generate_contract', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ history }),
+        body: JSON.stringify({ 
+          history,
+          model_name: selectedModel 
+        }),
       });
 
       if (!response.ok) {
@@ -192,6 +245,9 @@ function App() {
       const data = await response.json();
       
       if (data.status === 'success') {
+        clearTimeout(progressTimer);
+        clearTimeout(timer1);
+        clearTimeout(timer2);
         // Afficher uniquement le contrat
         setContractHtml(data.contract_html);
         setShowContract(true);
@@ -202,6 +258,9 @@ function App() {
       
     } catch (error) {
       console.error("Error generating contract:", error);
+      clearTimeout(progressTimer);
+      clearTimeout(timer1);
+      clearTimeout(timer2);
       setMessages(prev => prev.map(msg => 
         msg.id === statusMessageId 
           ? { ...msg, text: '❌ Error generating contract' }
@@ -307,10 +366,24 @@ function App() {
       setModificationMessages(prev => [...prev, aiMessage]);
       
       if (data.modified_html) {
+        // Appliquer les modifications au document
         setContractHtml(data.modified_html);
+        // Si en mode édition, mettre à jour le ref aussi
+        if (contractRef.current) {
+          contractRef.current.innerHTML = data.modified_html;
+        }
+        // Sauvegarder automatiquement
+        localStorage.setItem('counselai_contract', data.modified_html);
+        localStorage.setItem('counselai_contract_timestamp', new Date().toISOString());
       }
     } catch (error) {
       console.error("Error modifying contract:", error);
+      const errorMessage: Message = {
+        id: Date.now() + 1,
+        sender: 'ai',
+        text: "Sorry, an error occurred during modification."
+      };
+      setModificationMessages(prev => [...prev, errorMessage]);
     } finally {
       setIsLoading(false);
     }
@@ -397,7 +470,107 @@ function App() {
     <div className="app-container">
       <header>
         <h1>CounselAI</h1>
+        <button 
+          onClick={() => setShowSettings(!showSettings)}
+          style={{
+            position: 'absolute',
+            right: '20px',
+            top: '50%',
+            transform: 'translateY(-50%)',
+            background: 'transparent',
+            border: '1px solid white',
+            color: 'white',
+            padding: '8px 16px',
+            borderRadius: '5px',
+            cursor: 'pointer',
+            fontSize: '0.9rem'
+          }}
+        >
+          ⚙️ Model: {selectedModel.split('-').slice(-1)[0]}
+        </button>
       </header>
+      
+      {showSettings && (
+        <div style={{
+          position: 'fixed',
+          top: '80px',
+          right: '20px',
+          background: 'white',
+          border: '2px solid #000',
+          borderRadius: '10px',
+          padding: '20px',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
+          zIndex: 1000,
+          minWidth: '300px'
+        }}>
+          <h3 style={{ margin: '0 0 15px 0' }}>Select Gemini Model</h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+              <input
+                type="radio"
+                value="gemini-2.5-pro"
+                checked={selectedModel === 'gemini-2.5-pro'}
+                onChange={(e) => {
+                  setSelectedModel(e.target.value);
+                  localStorage.setItem('counselai_model', e.target.value);
+                }}
+                style={{ marginRight: '10px' }}
+              />
+              <div>
+                <strong>Gemini 2.5 Pro</strong>
+                <div style={{ fontSize: '0.85rem', color: '#666' }}>Most powerful, for complex documents</div>
+              </div>
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+              <input
+                type="radio"
+                value="gemini-2.5-flash"
+                checked={selectedModel === 'gemini-2.5-flash'}
+                onChange={(e) => {
+                  setSelectedModel(e.target.value);
+                  localStorage.setItem('counselai_model', e.target.value);
+                }}
+                style={{ marginRight: '10px' }}
+              />
+              <div>
+                <strong>Gemini 2.5 Flash</strong>
+                <div style={{ fontSize: '0.85rem', color: '#666' }}>Fast and efficient</div>
+              </div>
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+              <input
+                type="radio"
+                value="gemini-2.5-flash-lite-preview-06-17"
+                checked={selectedModel === 'gemini-2.5-flash-lite-preview-06-17'}
+                onChange={(e) => {
+                  setSelectedModel(e.target.value);
+                  localStorage.setItem('counselai_model', e.target.value);
+                }}
+                style={{ marginRight: '10px' }}
+              />
+              <div>
+                <strong>Gemini 2.5 Flash Lite</strong>
+                <div style={{ fontSize: '0.85rem', color: '#666' }}>Ultra fast, for testing</div>
+              </div>
+            </label>
+          </div>
+          <button
+            onClick={() => setShowSettings(false)}
+            style={{
+              marginTop: '15px',
+              width: '100%',
+              padding: '10px',
+              backgroundColor: '#000',
+              color: 'white',
+              border: 'none',
+              borderRadius: '5px',
+              cursor: 'pointer'
+            }}
+          >
+            Close
+          </button>
+        </div>
+      )}
       <div className="chat-window" ref={chatWindowRef}>
         {messages.map((msg) => (
           <div key={msg.id} className={`message ${msg.sender} ${msg.className || ''}`}>

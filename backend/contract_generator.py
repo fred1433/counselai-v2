@@ -179,11 +179,8 @@ Begin directly with the document title.
         """
         # Prompt HTML premium adapté pour tout format d'entrée
         formatting_prompt = html_prompt or """
-You are an expert AI assistant specialized in creating professional, self-contained HTML documents. Your task is to convert the following legal document into a single, high-quality HTML file. The result should be clean, professionally styled, and easily readable and include ALL the input text content. The output must be ONLY the final, complete HTML code, with CSS embedded in the head. It should be ready to be saved directly into an .html file. Do not include any commentary.
+Create a high-quality HTML file with all this content. Do not include any commentary before or after, just deliver the html.
 
----
-**INPUT LEGAL DOCUMENT (to be converted to HTML):**
----
 {contract}
         """
         

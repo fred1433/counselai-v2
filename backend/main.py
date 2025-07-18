@@ -41,9 +41,11 @@ except Exception as e:
 class ChatRequest(BaseModel):
     text: str
     history: list = []
+    model_name: str = "gemini-2.5-pro"  # Par défaut
 
 class GenerateLawyerResponseRequest(BaseModel):
     history: list = []
+    model_name: str = "gemini-2.5-pro"
 
 
 # The Master Prompt that guides the AI
@@ -66,17 +68,21 @@ CONTRACT_MODIFICATION_PROMPT = """
 You are a legal document modification expert. You help lawyers modify contracts efficiently.
 
 You receive:
-1. The current HTML of a legal document (which may include manual edits)
+1. The current HTML of a legal document
 2. A modification request from the lawyer
 
 Your task:
-- Analyze the modification request
-- Provide clear guidance on how to implement the change
-- If the modification is simple and specific, provide the exact text to change
-- If the modification is complex, explain what needs to be changed and why
-- Always maintain legal precision and professionalism
+- Analyze the modification request carefully
+- Apply the requested changes directly to the HTML
+- Maintain the existing HTML structure and styling
+- Preserve all unchanged content exactly as is
+- Ensure legal precision and proper language
 
-Be concise and practical. Focus on actionable advice.
+IMPORTANT: 
+- Return ONLY the modified HTML document, nothing else
+- Do not add explanations or comments
+- Keep all existing HTML tags, classes, and structure
+- Make only the requested changes
 """
 
 @app.get("/")
@@ -110,7 +116,7 @@ async def generate_lawyer_response(request: GenerateLawyerResponseRequest):
     try:
         # Utilise un modèle dédié avec le prompt du simulateur d'avocat
         lawyer_model = genai.GenerativeModel(
-            model_name=os.getenv("GEMINI_MODEL_NAME", "gemini-pro"),
+            model_name=request.model_name,
             system_instruction=LAWYER_SIMULATOR_PROMPT
         )
         
@@ -138,11 +144,13 @@ async def generate_lawyer_response(request: GenerateLawyerResponseRequest):
 
 class GenerateContractRequest(BaseModel):
     history: list
+    model_name: str = "gemini-2.5-pro"
 
 class ModifyContractRequest(BaseModel):
     current_html: str
     modification_request: str
     history: list = []
+    model_name: str = "gemini-2.5-pro"
 
 @app.post("/api/generate_contract")
 async def generate_contract(request: GenerateContractRequest):
@@ -158,7 +166,7 @@ async def generate_contract(request: GenerateContractRequest):
         result = await generate_contract_cascade(
             conversation_history=request.history,
             api_key=GEMINI_API_KEY,
-            model_name=os.getenv("GEMINI_MODEL_NAME", "gemini-pro")
+            model_name=request.model_name
         )
         
         return {
@@ -176,11 +184,14 @@ async def generate_contract(request: GenerateContractRequest):
 async def modify_contract(request: ModifyContractRequest):
     """
     Endpoint pour modifier un contrat existant basé sur les demandes de l'utilisateur.
+    Utilise le 4e assistant IA pour appliquer les modifications directement au HTML.
     """
+    print(f"🔧 Modification request: {request.modification_request[:100]}...")
+    
     try:
         # Créer un modèle avec le prompt de modification
         modification_model = genai.GenerativeModel(
-            model_name=os.getenv("GEMINI_MODEL_NAME", "gemini-pro"),
+            model_name=request.model_name,
             system_instruction=CONTRACT_MODIFICATION_PROMPT
         )
         
@@ -191,16 +202,28 @@ Current HTML Document:
 
 Modification Request:
 {request.modification_request}
+
+Remember: Return ONLY the modified HTML, no explanations.
 """
         
-        # Si historique disponible, l'inclure
-        if request.history:
-            chat_session = modification_model.start_chat(history=request.history)
-            response = await chat_session.send_message_async(context)
-        else:
-            response = await modification_model.generate_content_async(context)
+        # Générer la réponse
+        response = await modification_model.generate_content_async(context)
+        modified_html = response.text.strip()
         
-        return {"response": response.text}
+        # Vérifier si la réponse contient du HTML
+        if '<' in modified_html and '>' in modified_html:
+            print(f"✅ HTML modification successful")
+            return {
+                "response": f"Document modifié avec succès : {request.modification_request}",
+                "modified_html": modified_html
+            }
+        else:
+            # Si pas de HTML, c'est que l'IA a donné des conseils au lieu de modifier
+            print(f"⚠️ No HTML in response, returning advice instead")
+            return {
+                "response": modified_html,
+                "modified_html": None
+            }
         
     except Exception as e:
         print(f"Erreur lors de la modification du contrat : {e}")
@@ -214,7 +237,7 @@ async def chat(request: ChatRequest):
     async def stream_response_generator():
         try:
             model = genai.GenerativeModel(
-                model_name=os.getenv("GEMINI_MODEL_NAME", "gemini-pro"),
+                model_name=request.model_name,
                 system_instruction=MASTER_PROMPT
             )
             
