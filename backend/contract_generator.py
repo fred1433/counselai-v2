@@ -198,6 +198,22 @@ Create a professional legal document in HTML format. Structure it properly with 
             
         if html_content.strip().endswith('```'):
             html_content = html_content.strip()[:-3]  # Enlever ``` à la fin
+        
+        # Nettoyer le HTML si nécessaire - extraire seulement le contenu du body
+        if '<body' in html_content.lower():
+            import re
+            body_match = re.search(r'<body[^>]*>(.*)</body>', html_content, re.DOTALL | re.IGNORECASE)
+            if body_match:
+                html_content = body_match.group(1)
+        
+        # Enlever les balises <html>, <head>, <style> si présentes
+        if '<style' in html_content.lower():
+            import re
+            # Enlever tout le contenu entre <style> et </style>
+            html_content = re.sub(r'<style[^>]*>.*?</style>', '', html_content, flags=re.DOTALL | re.IGNORECASE)
+            # Enlever les meta tags et autres éléments de head
+            html_content = re.sub(r'<meta[^>]*>', '', html_content, flags=re.IGNORECASE)
+            html_content = re.sub(r'<title[^>]*>.*?</title>', '', html_content, flags=re.DOTALL | re.IGNORECASE)
             
         return html_content.strip()
 

@@ -226,6 +226,14 @@ Remember: Return ONLY the modified HTML, no explanations.
         
         # Vérifier si la réponse contient du HTML
         if '<' in modified_html and '>' in modified_html:
+            # Nettoyer le HTML si nécessaire
+            if '<body' in modified_html.lower():
+                # Extraire seulement le contenu du body
+                import re
+                body_match = re.search(r'<body[^>]*>(.*)</body>', modified_html, re.DOTALL | re.IGNORECASE)
+                if body_match:
+                    modified_html = body_match.group(1)
+            
             print(f"✅ HTML modification successful")
             return {
                 "response": "✓ Document updated successfully",
