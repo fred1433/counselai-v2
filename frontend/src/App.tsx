@@ -203,37 +203,73 @@ function App() {
     }]);
     
     // Déclaration des timers
-    let timer1: ReturnType<typeof setTimeout>;
-    let timer2: ReturnType<typeof setTimeout>;
+    const timers: ReturnType<typeof setTimeout>[] = [];
     
-    // Updates intermédiaires pour montrer l'activité
-    timer1 = setTimeout(() => {
-      progressText = '📝 **Step 1/2**: Generating legal content...\n\n⏳ Structuring clauses and legal terms...';
-      setMessages(prev => prev.map(msg => 
-        msg.id === statusMessageId 
-        ? { ...msg, text: progressText }
-        : msg
-      ));
-    }, 15000);
+    // Messages de progression variés pour l'étape 1
+    const step1Messages = [
+      '⏳ Analyzing your requirements...',
+      '⏳ Researching relevant legal precedents...',
+      '⏳ Structuring document framework...',
+      '⏳ Drafting initial clauses...',
+      '⏳ Incorporating jurisdiction-specific terms...',
+      '⏳ Building contractual obligations...',
+      '⏳ Defining party responsibilities...',
+      '⏳ Adding protective clauses...',
+      '⏳ Ensuring legal compliance...',
+      '⏳ Reviewing regulatory requirements...',
+      '⏳ Finalizing legal language...',
+      '⏳ Cross-checking terminology...'
+    ];
     
-    timer2 = setTimeout(() => {
-      progressText = '📝 **Step 1/2**: Generating legal content...\n\n⏳ Finalizing content and verifications...';
-      setMessages(prev => prev.map(msg => 
-        msg.id === statusMessageId 
-        ? { ...msg, text: progressText }
-        : msg
-      ));
-    }, 30000);
+    // Messages de progression pour l'étape 2
+    const step2Messages = [
+      '⏳ Applying professional formatting...',
+      '⏳ Structuring document sections...',
+      '⏳ Adding headers and subheaders...',
+      '⏳ Formatting legal citations...',
+      '⏳ Organizing clause hierarchy...',
+      '⏳ Applying consistent styling...',
+      '⏳ Ensuring proper numbering...',
+      '⏳ Finalizing document layout...'
+    ];
+    
+    // Programmer les messages de l'étape 1
+    step1Messages.forEach((message, index) => {
+      const timer = setTimeout(() => {
+        progressText = `📝 **Step 1/2**: Generating legal content...\n\n${message}`;
+        setMessages(prev => prev.map(msg => 
+          msg.id === statusMessageId 
+          ? { ...msg, text: progressText }
+          : msg
+        ));
+      }, 3000 + (index * 3000)); // Un message toutes les 3 secondes
+      timers.push(timer);
+    });
     
     // Passage à l'étape 2 après 40 secondes
     const progressTimer = setTimeout(() => {
-      progressText = '📝 Step 1/2: Generating legal content... ✓\n\n🎨 **Step 2/2**: Professional formatting...\n\n⏳ Applying HTML formatting and styles...';
+      progressText = '📝 Step 1/2: Generating legal content... ✓\n\n🎨 **Step 2/2**: Professional formatting...\n\n⏳ Applying professional formatting...';
       setMessages(prev => prev.map(msg => 
         msg.id === statusMessageId 
           ? { ...msg, text: progressText }
           : msg
       ));
+      
+      // Programmer les messages de l'étape 2
+      step2Messages.slice(1).forEach((message, index) => {
+        const timer = setTimeout(() => {
+          progressText = `📝 Step 1/2: Generating legal content... ✓\n\n🎨 **Step 2/2**: Professional formatting...\n\n${message}`;
+          setMessages(prev => prev.map(msg => 
+            msg.id === statusMessageId 
+            ? { ...msg, text: progressText }
+            : msg
+          ));
+        }, 3000 + (index * 3000));
+        timers.push(timer);
+      });
     }, 40000);
+    
+    timers.push(progressTimer);
     
     try {
       // Create AbortController for timeout handling
@@ -260,8 +296,7 @@ function App() {
       
       if (data.status === 'success') {
         clearTimeout(progressTimer);
-        clearTimeout(timer1);
-        clearTimeout(timer2);
+        timers.forEach(timer => clearTimeout(timer));
         // Save the initial contract as a version
         saveVersion(data.contract_html, 'initial', 'Initial contract generation');
         setShowContract(true);
@@ -273,8 +308,7 @@ function App() {
     } catch (error: any) {
       console.error("Error generating contract:", error);
       clearTimeout(progressTimer);
-      clearTimeout(timer1);
-      clearTimeout(timer2);
+      timers.forEach(timer => clearTimeout(timer));
       
       let errorMessage = '❌ Error generating contract';
       if (error.name === 'AbortError') {
