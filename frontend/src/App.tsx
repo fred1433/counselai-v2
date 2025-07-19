@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import './App.css';
 import { MOCK_CONTRACT_HTML } from './mockContract';
+import { API_URL } from './config';
 
 interface Message {
   id: number;
@@ -90,7 +91,7 @@ function App() {
     }));
 
     try {
-      const response = await fetch('http://localhost:8001/api/chat', {
+      const response = await fetch(`${API_URL}/api/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -157,7 +158,7 @@ function App() {
     }));
 
     try {
-      const response = await fetch('http://localhost:8001/api/generate_lawyer_response', {
+      const response = await fetch(`${API_URL}/api/generate_lawyer_response`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -229,7 +230,7 @@ function App() {
     }, 40000);
     
     try {
-      const response = await fetch('http://localhost:8001/api/generate_contract', {
+      const response = await fetch(`${API_URL}/api/generate_contract`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -346,7 +347,7 @@ function App() {
     setIsLoading(true);
     
     try {
-      const response = await fetch('http://localhost:8001/api/modify_contract', {
+      const response = await fetch(`${API_URL}/api/modify_contract`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -470,27 +471,29 @@ function App() {
     <div className="app-container">
       <header>
         <h1>CounselAI</h1>
-        <button 
-          onClick={() => setShowSettings(!showSettings)}
-          style={{
-            position: 'absolute',
-            right: '20px',
-            top: '50%',
-            transform: 'translateY(-50%)',
-            background: 'transparent',
-            border: '1px solid white',
-            color: 'white',
-            padding: '8px 16px',
-            borderRadius: '5px',
-            cursor: 'pointer',
-            fontSize: '0.9rem'
-          }}
-        >
-          ⚙️ Model: {selectedModel.split('-').slice(-1)[0]}
-        </button>
+        {process.env.NODE_ENV === 'development' && (
+          <button 
+            onClick={() => setShowSettings(!showSettings)}
+            style={{
+              position: 'absolute',
+              right: '20px',
+              top: '50%',
+              transform: 'translateY(-50%)',
+              background: 'transparent',
+              border: '1px solid white',
+              color: 'white',
+              padding: '8px 16px',
+              borderRadius: '5px',
+              cursor: 'pointer',
+              fontSize: '0.9rem'
+            }}
+          >
+            ⚙️ Model: {selectedModel.split('-').slice(-1)[0]}
+          </button>
+        )}
       </header>
       
-      {showSettings && (
+      {process.env.NODE_ENV === 'development' && showSettings && (
         <div style={{
           position: 'fixed',
           top: '80px',
