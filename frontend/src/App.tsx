@@ -475,22 +475,26 @@ function App() {
             ← New Document
           </button>
           <div className="edit-controls-group">
-            <button 
-              className="version-button"
-              onClick={undo}
-              disabled={!canUndo}
-              title="Undo (Ctrl+Z)"
-            >
-              ↶
-            </button>
-            <button 
-              className="version-button"
-              onClick={redo}
-              disabled={!canRedo}
-              title="Redo (Ctrl+Y)"
-            >
-              ↷
-            </button>
+            {versionCount > 1 && (
+              <>
+                <button 
+                  className="version-button"
+                  onClick={undo}
+                  disabled={!canUndo}
+                  title="Undo (Ctrl+Z)"
+                >
+                  ↶
+                </button>
+                <button 
+                  className="version-button"
+                  onClick={redo}
+                  disabled={!canRedo}
+                  title="Redo (Ctrl+Y)"
+                >
+                  ↷
+                </button>
+              </>
+            )}
             <button className="edit-button" onClick={toggleEditMode}>
               {editMode ? '💾 Save' : '✏️ Edit'}
             </button>
