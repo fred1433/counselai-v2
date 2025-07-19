@@ -490,7 +490,7 @@ function App() {
         )}
       </header>
       
-      {process.env.NODE_ENV === 'development' && showSettings && (
+      {import.meta.env.DEV && showSettings && (
         <div style={{
           position: 'fixed',
           top: '80px',
