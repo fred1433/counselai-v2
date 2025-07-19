@@ -241,9 +241,22 @@ async def chat(request: ChatRequest):
                 system_instruction=MASTER_PROMPT
             )
             
-            chat_session = model.start_chat(history=request.history)
+            # Valider et nettoyer l'historique
+            cleaned_history = []
+            for msg in request.history:
+                if isinstance(msg, dict) and 'role' in msg and 'parts' in msg:
+                    cleaned_history.append(msg)
+                else:
+                    print(f"⚠️ Message mal formé dans l'historique: {msg}")
             
-            print(f"\n📨 Message reçu de l'utilisateur: {request.text[:200]}...")
+            chat_session = model.start_chat(history=cleaned_history)
+            
+            # Affichage sécurisé du message avec gestion des caractères spéciaux
+            try:
+                preview = request.text[:200].encode('utf-8', errors='replace').decode('utf-8')
+                print(f"\n📨 Message reçu de l'utilisateur: {preview}...")
+            except Exception as e:
+                print(f"\n📨 Message reçu (impossible d'afficher le preview): {e}")
             
             # Vérifier si c'est une confirmation pour générer le document
             confirmation_keywords = ["yes", "proceed", "go ahead", "please generate", "confirmed", "correct", "accurate"]
@@ -253,8 +266,15 @@ async def chat(request: ChatRequest):
             if is_confirmation:
                 print(f"✅ Confirmation détectée! Vérification du contexte...")
                 # Vérifier si on a assez d'infos dans l'historique
-                has_summary = any("shall we proceed" in msg.get('parts', [{}])[0].get('text', '').lower() 
-                                 for msg in request.history if msg.get('role') == 'model')
+                has_summary = False
+                for msg in request.history:
+                    if msg.get('role') == 'model':
+                        parts = msg.get('parts', [])
+                        if parts and len(parts) > 0 and isinstance(parts[0], dict):
+                            text = parts[0].get('text', '')
+                            if 'shall we proceed' in text.lower():
+                                has_summary = True
+                                break
                 if has_summary:
                     print(f"📋 Résumé trouvé dans l'historique, activation de l'outil...")
             
@@ -264,9 +284,9 @@ async def chat(request: ChatRequest):
             async for chunk in response:
                 try:
                     # Vérifier d'abord les appels de fonction
-                    if hasattr(chunk, 'candidates') and chunk.candidates:
+                    if hasattr(chunk, 'candidates') and chunk.candidates and len(chunk.candidates) > 0:
                         candidate = chunk.candidates[0]
-                        if hasattr(candidate.content, 'parts') and candidate.content.parts:
+                        if hasattr(candidate, 'content') and hasattr(candidate.content, 'parts') and candidate.content.parts:
                             for part in candidate.content.parts:
                                 if hasattr(part, 'function_call') and part.function_call:
                                     tool_name = part.function_call.name
@@ -282,14 +302,31 @@ async def chat(request: ChatRequest):
                                 yield text
                                 await asyncio.sleep(0.01)
                         except Exception as text_error:
-                            # Ignorer les erreurs de texte et continuer
-                            pass
+                            # Log l'erreur mais continuer le streaming
+                            print(f"⚠️ Erreur lors du traitement du texte: {text_error}")
+                            print(f"   Type de chunk: {type(chunk)}")
+                            print(f"   Chunk complet: {chunk}")
                 except Exception as chunk_error:
-                    # Ignorer les chunks problématiques et continuer
-                    pass
+                    # Log l'erreur mais continuer le streaming
+                    print(f"⚠️ Erreur lors du traitement du chunk: {chunk_error}")
+                    print(f"   Type de chunk: {type(chunk)}")
+                    try:
+                        print(f"   Chunk complet: {chunk}")
+                    except:
+                        print("   Impossible d'afficher le chunk")
 
         except Exception as e:
-            print(f"Une erreur est survenue dans l'endpoint chat : {e}")
-            yield f"Erreur critique inattendue: {str(e)}"
+            import traceback
+            error_details = traceback.format_exc()
+            print(f"❌ Erreur critique dans l'endpoint chat:")
+            print(f"   Type d'erreur: {type(e).__name__}")
+            print(f"   Message: {str(e)}")
+            print(f"   Traceback complet:\n{error_details}")
+            
+            # Encoder le message d'erreur pour éviter les problèmes de caractères spéciaux
+            error_msg = f"Erreur critique inattendue: {type(e).__name__} - {str(e)}"
+            # Remplacer les caractères problématiques
+            error_msg = error_msg.replace('\n', ' ').replace('\r', ' ')
+            yield error_msg
 
     return StreamingResponse(stream_response_generator(), media_type="text/plain") 

@@ -179,7 +179,7 @@ Begin directly with the document title.
         """
         # Prompt HTML premium adapté pour tout format d'entrée
         formatting_prompt = html_prompt or """
-Create a high-quality HTML file with all this content. Do not include any commentary before or after, just deliver the html.
+Create a professional legal document in HTML format. Structure it properly with clear margins and formatting suitable for a high-quality contract. Do not include any commentary before or after, just deliver the html.
 
 {contract}
         """
