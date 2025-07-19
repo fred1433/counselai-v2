@@ -26,7 +26,10 @@ function App() {
   ]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [showContract, setShowContract] = useState(false);
+  const [showContract, setShowContract] = useState(() => {
+    // Restaurer l'état de navigation
+    return localStorage.getItem('counselai_current_view') === 'contract';
+  });
   const [contractHtml, setContractHtml] = useState('');
   const [editMode, setEditMode] = useState(false);
   const [showModificationChat, setShowModificationChat] = useState(false);
@@ -49,8 +52,20 @@ function App() {
     chatWindowRef.current?.scrollTo({ top: chatWindowRef.current.scrollHeight, behavior: 'smooth' });
   }, [messages]);
 
-  // Supprimé : l'auto-restore était trop intrusif
-  // Le contrat est toujours sauvegardé mais pas de popup
+  // Sauvegarder l'état de navigation
+  useEffect(() => {
+    localStorage.setItem('counselai_current_view', showContract ? 'contract' : 'chat');
+  }, [showContract]);
+
+  // Restaurer le contrat HTML si on revient sur la vue contrat
+  useEffect(() => {
+    if (showContract && !contractHtml) {
+      const savedContract = localStorage.getItem('counselai_contract');
+      if (savedContract) {
+        setContractHtml(savedContract);
+      }
+    }
+  }, [showContract, contractHtml]);
 
   const sendMessage = async () => {
     if (!input.trim() || isLoading) return;
