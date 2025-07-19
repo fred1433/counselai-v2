@@ -77,13 +77,16 @@ export function useDocumentVersions(initialHtml: string = ''): UseDocumentVersio
       
       // Limiter le nombre de versions
       if (newVersions.length > MAX_VERSIONS) {
-        return newVersions.slice(-MAX_VERSIONS);
+        const trimmedVersions = newVersions.slice(-MAX_VERSIONS);
+        // Adjust index after trimming
+        setCurrentIndex(trimmedVersions.length - 1);
+        return trimmedVersions;
       }
       
+      // Update index to point to the new version
+      setCurrentIndex(newVersions.length - 1);
       return newVersions;
     });
-
-    setCurrentIndex(prev => Math.min(prev + 1, MAX_VERSIONS - 1));
   }, [currentIndex, versions]);
 
   const undo = useCallback(() => {

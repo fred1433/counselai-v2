@@ -423,10 +423,11 @@ function App() {
       
       if (data.modified_html) {
         console.log('🔄 Received modified HTML, updating document...');
+        console.log('📄 HTML length:', data.modified_html.length);
         // Save as a new version with AI modification
         saveVersion(data.modified_html, 'ai', `AI modification: ${userMessage.text}`);
         // Si en mode édition, mettre à jour le ref aussi
-        if (contractRef.current) {
+        if (contractRef.current && !editMode) {
           contractRef.current.innerHTML = data.modified_html;
         }
         // Sauvegarder automatiquement
