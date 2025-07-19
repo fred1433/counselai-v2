@@ -232,6 +232,10 @@ function App() {
     }, 40000);
     
     try {
+      // Create AbortController for timeout handling
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 180000); // 180 seconds timeout for contract generation
+      
       const response = await fetch(`${API_URL}/api/generate_contract`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -239,7 +243,10 @@ function App() {
           history,
           model_name: selectedModel 
         }),
+        signal: controller.signal
       });
+      
+      clearTimeout(timeoutId);
 
       if (!response.ok) {
         throw new Error("Error generating contract");
@@ -259,14 +266,22 @@ function App() {
         throw new Error("Generation failed");
       }
       
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error generating contract:", error);
       clearTimeout(progressTimer);
       clearTimeout(timer1);
       clearTimeout(timer2);
+      
+      let errorMessage = '❌ Error generating contract';
+      if (error.name === 'AbortError') {
+        errorMessage = '❌ Contract generation timed out. The request took too long. Please try again or simplify your requirements.';
+      } else if (error.message) {
+        errorMessage = `❌ Error: ${error.message}`;
+      }
+      
       setMessages(prev => prev.map(msg => 
         msg.id === statusMessageId 
-          ? { ...msg, text: '❌ Error generating contract' }
+          ? { ...msg, text: errorMessage }
           : msg
       ));
     }
@@ -380,6 +395,10 @@ function App() {
     setIsLoading(true);
     
     try {
+      // Create AbortController for timeout handling
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 120000); // 120 seconds timeout
+      
       const response = await fetch(`${API_URL}/api/modify_contract`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -388,7 +407,10 @@ function App() {
           modification_request: modificationInput,
           history: modificationMessages
         }),
+        signal: controller.signal
       });
+      
+      clearTimeout(timeoutId);
       
       const data = await response.json();
       
@@ -410,12 +432,20 @@ function App() {
         localStorage.setItem('counselai_contract', data.modified_html);
         localStorage.setItem('counselai_contract_timestamp', new Date().toISOString());
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error modifying contract:", error);
+      let errorText = "Sorry, an error occurred during modification.";
+      
+      if (error.name === 'AbortError') {
+        errorText = "The request took too long and was cancelled. Please try a simpler modification or break it down into smaller changes.";
+      } else if (error.message) {
+        errorText = `Error: ${error.message}`;
+      }
+      
       const errorMessage: Message = {
         id: Date.now() + 1,
         sender: 'ai',
-        text: "Sorry, an error occurred during modification."
+        text: errorText
       };
       setModificationMessages(prev => [...prev, errorMessage]);
     } finally {
@@ -440,7 +470,7 @@ function App() {
           }}>
             ← New Document
           </button>
-          <div className="version-controls">
+          <div className="edit-controls-group">
             <button 
               className="version-button"
               onClick={undo}
@@ -449,9 +479,6 @@ function App() {
             >
               ↶ Undo
             </button>
-            <span className="version-info">
-              {currentVersionIndex + 1} / {versionCount}
-            </span>
             <button 
               className="version-button"
               onClick={redo}
@@ -460,10 +487,13 @@ function App() {
             >
               ↷ Redo
             </button>
+            <span className="version-info">
+              {currentVersionIndex + 1} / {versionCount}
+            </span>
+            <button className="edit-button" onClick={toggleEditMode}>
+              {editMode ? '💾 Save' : '✏️ Edit'}
+            </button>
           </div>
-          <button className="edit-button" onClick={toggleEditMode}>
-            {editMode ? '💾 Save' : '✏️ Edit'}
-          </button>
         </div>
         
         {editMode && (

@@ -294,6 +294,17 @@ header h1 {
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
 }
 
+/* Edit controls group - contains undo/redo and edit button */
+.edit-controls-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(255, 255, 255, 0.95);
+  padding: 8px 16px;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
 .version-button {
   padding: 8px 16px;
   background: #f0f0f0;
