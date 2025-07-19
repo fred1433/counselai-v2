@@ -224,7 +224,7 @@ Remember: Return ONLY the modified HTML, no explanations.
         if '<' in modified_html and '>' in modified_html:
             print(f"✅ HTML modification successful")
             return {
-                "response": f"Document modifié avec succès : {request.modification_request}",
+                "response": f"Document successfully modified: {request.modification_request}",
                 "modified_html": modified_html
             }
         else:
