@@ -19,6 +19,8 @@ origins = [
     "http://localhost",
     "http://localhost:5173", # Port par défaut de Vite/React
     "http://localhost:5174", # Port configuré pour ce projet
+    "https://counselai-frontend-prod.onrender.com",
+    "https://counselai-v2.onrender.com"
 ]
 
 app.add_middleware(
