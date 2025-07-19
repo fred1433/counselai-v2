@@ -35,6 +35,10 @@ function App() {
   // Removed unused state - was for generation progress
   const [showSettings, setShowSettings] = useState(false);
   const [selectedModel, setSelectedModel] = useState(() => {
+    // En production, forcer gemini-2.5-pro
+    if (!import.meta.env.DEV) {
+      return 'gemini-2.5-pro';
+    }
     return localStorage.getItem('counselai_model') || 'gemini-2.5-pro';
   });
   const contractRef = useRef<HTMLDivElement>(null);
