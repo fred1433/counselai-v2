@@ -14,10 +14,10 @@ jobs:
         env:
           RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
         run: |
-          # Get service ID for counselai-backend
+          # Get service ID for counselai-backend-prod
           SERVICE_ID=$(curl -s -H "Authorization: Bearer $RENDER_API_KEY" \
-            "https://api.render.com/v1/services?name=counselai-backend" \
-            | jq -r '.[] | select(.service.name=="counselai-backend") | .service.id')
+            "https://api.render.com/v1/services?name=counselai-backend-prod" \
+            | jq -r '.[] | select(.service.name=="counselai-backend-prod") | .service.id')
           
           if [ ! -z "$SERVICE_ID" ]; then
             # Suspend the service
