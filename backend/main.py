@@ -148,7 +148,9 @@ async def generate_lawyer_response(request: GenerateLawyerResponseRequest):
 
     except Exception as e:
         print(f"Erreur lors de la génération de la réponse de l'avocat : {e}")
-        raise HTTPException(status_code=500, detail="Erreur interne du serveur")
+        print(f"Type d'erreur: {type(e).__name__}")
+        print(f"Détails complets: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Erreur interne du serveur: {str(e)}")
 
 class GenerateContractRequest(BaseModel):
     history: list
