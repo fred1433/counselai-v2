@@ -3,7 +3,7 @@ services:
   - type: web
     name: counselai-backend
     runtime: python
-    plan: free
+    plan: starter # Plan payant - $7/mois
     buildCommand: "pip install -r backend/requirements.txt"
     startCommand: "cd backend && uvicorn main:app --host 0.0.0.0 --port $PORT"
     envVars:
