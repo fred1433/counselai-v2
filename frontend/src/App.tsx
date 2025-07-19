@@ -49,30 +49,8 @@ function App() {
     chatWindowRef.current?.scrollTo({ top: chatWindowRef.current.scrollHeight, behavior: 'smooth' });
   }, [messages]);
 
-  // En développement seulement : charger le contrat sauvegardé
-  useEffect(() => {
-    if (import.meta.env.DEV) {
-      const savedContract = localStorage.getItem('counselai_contract');
-      const savedTimestamp = localStorage.getItem('counselai_contract_timestamp');
-      
-      if (savedContract && savedTimestamp) {
-        const timestamp = new Date(savedTimestamp);
-        const now = new Date();
-        const hoursSince = (now.getTime() - timestamp.getTime()) / (1000 * 60 * 60);
-        
-        // Si le contrat a moins de 24h, proposer de le restaurer
-        if (hoursSince < 24) {
-          const restore = window.confirm(
-            `A contract was saved ${Math.round(hoursSince)} hours ago. Would you like to restore it?`
-          );
-          if (restore) {
-            setContractHtml(savedContract);
-            setShowContract(true);
-          }
-        }
-      }
-    }
-  }, []);
+  // Supprimé : l'auto-restore était trop intrusif
+  // Le contrat est toujours sauvegardé mais pas de popup
 
   const sendMessage = async () => {
     if (!input.trim() || isLoading) return;
