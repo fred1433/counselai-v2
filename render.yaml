@@ -1,7 +1,7 @@
 services:
   # Backend service
   - type: web
-    name: counselai-backend
+    name: counselai-backend-v2
     runtime: python
     plan: starter # Plan payant - $7/mois
     buildCommand: "pip install -r backend/requirements.txt"
@@ -14,7 +14,7 @@ services:
 
   # Frontend service  
   - type: web
-    name: counselai-frontend
+    name: counselai-frontend-v2
     runtime: static
     plan: free
     buildCommand: "cd frontend && npm install && npm run build"

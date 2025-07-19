@@ -4,7 +4,7 @@
 
 ### URLs en production :
 - **Application** : https://counselai-frontend-v2.onrender.com
-- **API Backend** : https://counselai-backend-v2.onrender.com
+- **API Backend** : https://counselai-backend.onrender.com
 
 ### Tableaux de bord Render :
 - [Backend Dashboard](https://dashboard.render.com/web/srv-d1tqv2idbo4c73dtdg40)
