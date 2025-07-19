@@ -375,8 +375,18 @@ function App() {
     return (
       <div className="contract-display-container">
         <div className="contract-controls">
-          <button className="back-to-chat" onClick={() => setShowContract(false)}>
-            ← Back to chat
+          <button className="back-to-chat" onClick={() => {
+            if (window.confirm('Start a new document? This will reset the conversation.')) {
+              setShowContract(false);
+              setMessages([{ 
+                id: 1, 
+                sender: 'ai', 
+                text: "For this new mandate, what is the primary strategic objective your client is seeking to achieve?" 
+              }]);
+              setInput('');
+            }
+          }}>
+            ← New Document
           </button>
           <button className="edit-button" onClick={toggleEditMode}>
             {editMode ? '💾 Save' : '✏️ Edit'}
