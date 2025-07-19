@@ -19,8 +19,8 @@
 
 ### Dates importantes :
 - **Déployé le** : 19 janvier 2025
-- **Suspension auto** : 9 février 2025 (3 semaines)
-- **Coût total estimé** : ~$5
+- **Suspension auto** : 31 janvier 2025 (12 jours)
+- **Coût total estimé** : ~$2.80
 
 ### Pour changer la date :
 Éditez `.github/workflows/auto-suspend.yml` et modifiez la ligne cron
