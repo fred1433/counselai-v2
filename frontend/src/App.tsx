@@ -32,10 +32,7 @@ function App() {
   const [showModificationChat, setShowModificationChat] = useState(false);
   const [modificationMessages, setModificationMessages] = useState<Message[]>([]);
   const [modificationInput, setModificationInput] = useState('');
-  const [generationProgress, setGenerationProgress] = useState<{
-    step: number;
-    message: string;
-  } | null>(null);
+  // Removed unused state - was for generation progress
   const [showSettings, setShowSettings] = useState(false);
   const [selectedModel, setSelectedModel] = useState(() => {
     return localStorage.getItem('counselai_model') || 'gemini-2.5-pro';
@@ -197,8 +194,8 @@ function App() {
     }]);
     
     // Déclaration des timers
-    let timer1: NodeJS.Timeout;
-    let timer2: NodeJS.Timeout;
+    let timer1: ReturnType<typeof setTimeout>;
+    let timer2: ReturnType<typeof setTimeout>;
     
     // Updates intermédiaires pour montrer l'activité
     timer1 = setTimeout(() => {
@@ -471,7 +468,7 @@ function App() {
     <div className="app-container">
       <header>
         <h1>CounselAI</h1>
-        {process.env.NODE_ENV === 'development' && (
+        {import.meta.env.DEV && (
           <button 
             onClick={() => setShowSettings(!showSettings)}
             style={{
@@ -587,7 +584,7 @@ function App() {
         )}
       </div>
       {/* Dev button to load mock contract */}
-      {process.env.NODE_ENV === 'development' && (
+      {import.meta.env.DEV && (
         <button 
           onClick={() => {
             setContractHtml(MOCK_CONTRACT_HTML);
