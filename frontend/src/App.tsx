@@ -52,8 +52,13 @@ function App() {
   // Removed unused state - was for generation progress
   const [showSettings, setShowSettings] = useState(false);
   const [selectedModel, setSelectedModel] = useState(() => {
-    // En production, forcer gemini-2.5-pro
+    // En production, vérifier d'abord le paramètre URL
     if (!import.meta.env.DEV) {
+      const urlParams = new URLSearchParams(window.location.search);
+      const modelParam = urlParams.get('model');
+      if (modelParam === 'flash-lite') {
+        return 'gemini-2.5-flash-lite-preview-06-17';
+      }
       return 'gemini-2.5-pro';
     }
     return localStorage.getItem('counselai_model') || 'gemini-2.5-pro';
