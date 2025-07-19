@@ -1,0 +1,57 @@
+name: Auto Suspend Services
+
+on:
+  schedule:
+    # Suspend after 3 weeks - February 9, 2025 at 00:00 UTC
+    - cron: '0 0 9 2 *'
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  suspend:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Suspend Render Services
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+        run: |
+          # Get service ID for counselai-backend
+          SERVICE_ID=$(curl -s -H "Authorization: Bearer $RENDER_API_KEY" \
+            "https://api.render.com/v1/services?name=counselai-backend" \
+            | jq -r '.[] | select(.name=="counselai-backend") | .id')
+          
+          if [ ! -z "$SERVICE_ID" ]; then
+            # Suspend the service
+            curl -X POST \
+              -H "Authorization: Bearer $RENDER_API_KEY" \
+              -H "Content-Type: application/json" \
+              "https://api.render.com/v1/services/$SERVICE_ID/suspend"
+            
+            echo "Service suspended successfully"
+          else
+            echo "Service not found"
+          fi
+          
+      - name: Create Issue Reminder
+        uses: actions/github-script@v6
+        with:
+          script: |
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: '🔴 Render Services Auto-Suspended',
+              body: `## Services Suspended
+              
+              The Render services have been automatically suspended to avoid charges.
+              
+              ### To Reactivate:
+              1. Go to [Render Dashboard](https://dashboard.render.com)
+              2. Click on your service
+              3. Click "Resume Service"
+              
+              ### To Extend:
+              - Edit \`.github/workflows/auto-suspend.yml\`
+              - Change the cron date
+              - Push changes
+              
+              Suspended on: ${new Date().toISOString()}`
+            })
