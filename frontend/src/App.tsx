@@ -227,7 +227,7 @@ function App() {
     
     // Passage à l'étape 2 après 40 secondes
     const progressTimer = setTimeout(() => {
-      progressText = '📝 ~~Step 1/2: Generating legal content...~~ ✓\n\n🎨 **Step 2/2**: Professional formatting...\n\n⏳ Applying HTML formatting and styles...';
+      progressText = '📝 Step 1/2: Generating legal content... ✓\n\n🎨 **Step 2/2**: Professional formatting...\n\n⏳ Applying HTML formatting and styles...';
       setMessages(prev => prev.map(msg => 
         msg.id === statusMessageId 
           ? { ...msg, text: progressText }
