@@ -3,6 +3,7 @@ import ReactMarkdown from 'react-markdown';
 import './App.css';
 import { MOCK_CONTRACT_HTML } from './mockContract';
 import { API_URL } from './config';
+import { useDocumentVersions } from './useDocumentVersions';
 
 interface Message {
   id: number;
@@ -30,7 +31,20 @@ function App() {
     // Restaurer l'état de navigation
     return localStorage.getItem('counselai_current_view') === 'contract';
   });
-  const [contractHtml, setContractHtml] = useState('');
+  
+  // Initialize version system with saved contract or empty string
+  const savedContract = localStorage.getItem('counselai_contract') || '';
+  const {
+    currentVersion: contractHtml,
+    canUndo,
+    canRedo,
+    versionCount,
+    currentVersionIndex,
+    undo,
+    redo,
+    saveVersion
+  } = useDocumentVersions(savedContract);
+  
   const [editMode, setEditMode] = useState(false);
   const [showModificationChat, setShowModificationChat] = useState(false);
   const [modificationMessages, setModificationMessages] = useState<Message[]>([]);
@@ -57,15 +71,7 @@ function App() {
     localStorage.setItem('counselai_current_view', showContract ? 'contract' : 'chat');
   }, [showContract]);
 
-  // Restaurer le contrat HTML si on revient sur la vue contrat
-  useEffect(() => {
-    if (showContract && !contractHtml) {
-      const savedContract = localStorage.getItem('counselai_contract');
-      if (savedContract) {
-        setContractHtml(savedContract);
-      }
-    }
-  }, [showContract, contractHtml]);
+  // No longer needed - version system handles contract restoration
 
   const sendMessage = async () => {
     if (!input.trim() || isLoading) return;
@@ -245,8 +251,8 @@ function App() {
         clearTimeout(progressTimer);
         clearTimeout(timer1);
         clearTimeout(timer2);
-        // Afficher uniquement le contrat
-        setContractHtml(data.contract_html);
+        // Save the initial contract as a version
+        saveVersion(data.contract_html, 'initial', 'Initial contract generation');
         setShowContract(true);
         
       } else {
@@ -289,15 +295,46 @@ function App() {
       contractRef.current.contentEditable = newEditMode ? 'true' : 'false';
       
       if (!newEditMode) {
-        // Save the edited HTML
+        // Save the edited HTML as a new version
         const updatedHtml = contractRef.current.innerHTML;
-        setContractHtml(updatedHtml);
-        // Save to localStorage
+        saveVersion(updatedHtml, 'manual', 'Manual edit');
+        // Save to localStorage (version system also does this, but keep for compatibility)
         localStorage.setItem('counselai_contract', updatedHtml);
         localStorage.setItem('counselai_contract_timestamp', new Date().toISOString());
       }
     }
   };
+
+  // Update contract ref when version changes (undo/redo)
+  useEffect(() => {
+    if (contractRef.current && contractHtml && !editMode) {
+      contractRef.current.innerHTML = contractHtml;
+    }
+  }, [contractHtml, editMode]);
+
+  // Keyboard shortcuts for undo/redo
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Only handle shortcuts when showing contract
+      if (!showContract) return;
+      
+      // Ctrl+Z or Cmd+Z for undo
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        if (canUndo) undo();
+      }
+      
+      // Ctrl+Y or Cmd+Y for redo (or Ctrl+Shift+Z / Cmd+Shift+Z)
+      if (((e.ctrlKey || e.metaKey) && e.key === 'y') || 
+          ((e.ctrlKey || e.metaKey) && e.key === 'z' && e.shiftKey)) {
+        e.preventDefault();
+        if (canRedo) redo();
+      }
+    };
+    
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [showContract, canUndo, canRedo, undo, redo]);
 
   // Gestionnaire pour le copier-coller - DOIT être avant tous les returns
   useEffect(() => {
@@ -363,8 +400,8 @@ function App() {
       setModificationMessages(prev => [...prev, aiMessage]);
       
       if (data.modified_html) {
-        // Appliquer les modifications au document
-        setContractHtml(data.modified_html);
+        // Save as a new version with AI modification
+        saveVersion(data.modified_html, 'ai', `AI modification: ${modificationInput}`);
         // Si en mode édition, mettre à jour le ref aussi
         if (contractRef.current) {
           contractRef.current.innerHTML = data.modified_html;
@@ -403,6 +440,27 @@ function App() {
           }}>
             ← New Document
           </button>
+          <div className="version-controls">
+            <button 
+              className="version-button"
+              onClick={undo}
+              disabled={!canUndo}
+              title="Undo (Ctrl+Z)"
+            >
+              ↶ Undo
+            </button>
+            <span className="version-info">
+              {currentVersionIndex + 1} / {versionCount}
+            </span>
+            <button 
+              className="version-button"
+              onClick={redo}
+              disabled={!canRedo}
+              title="Redo (Ctrl+Y)"
+            >
+              ↷ Redo
+            </button>
+          </div>
           <button className="edit-button" onClick={toggleEditMode}>
             {editMode ? '💾 Save' : '✏️ Edit'}
           </button>
@@ -599,7 +657,7 @@ function App() {
       {import.meta.env.DEV && (
         <button 
           onClick={() => {
-            setContractHtml(MOCK_CONTRACT_HTML);
+            saveVersion(MOCK_CONTRACT_HTML, 'initial', 'Mock contract loaded');
             setShowContract(true);
           }}
           style={{
