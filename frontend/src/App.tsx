@@ -39,7 +39,6 @@ function App() {
     canUndo,
     canRedo,
     versionCount,
-    currentVersionIndex,
     undo,
     redo,
     saveVersion
