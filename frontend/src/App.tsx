@@ -481,7 +481,7 @@ function App() {
               disabled={!canUndo}
               title="Undo (Ctrl+Z)"
             >
-              ↶ Undo
+              ↶
             </button>
             <button 
               className="version-button"
@@ -489,11 +489,8 @@ function App() {
               disabled={!canRedo}
               title="Redo (Ctrl+Y)"
             >
-              ↷ Redo
+              ↷
             </button>
-            <span className="version-info">
-              {currentVersionIndex + 1} / {versionCount}
-            </span>
             <button className="edit-button" onClick={toggleEditMode}>
               {editMode ? '💾 Save' : '✏️ Edit'}
             </button>
