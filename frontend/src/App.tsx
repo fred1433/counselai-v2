@@ -404,7 +404,7 @@ function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           current_html: contractRef.current?.innerHTML || contractHtml,
-          modification_request: modificationInput,
+          modification_request: userMessage.text,
           history: modificationMessages
         }),
         signal: controller.signal
@@ -422,8 +422,9 @@ function App() {
       setModificationMessages(prev => [...prev, aiMessage]);
       
       if (data.modified_html) {
+        console.log('🔄 Received modified HTML, updating document...');
         // Save as a new version with AI modification
-        saveVersion(data.modified_html, 'ai', `AI modification: ${modificationInput}`);
+        saveVersion(data.modified_html, 'ai', `AI modification: ${userMessage.text}`);
         // Si en mode édition, mettre à jour le ref aussi
         if (contractRef.current) {
           contractRef.current.innerHTML = data.modified_html;
@@ -431,6 +432,8 @@ function App() {
         // Sauvegarder automatiquement
         localStorage.setItem('counselai_contract', data.modified_html);
         localStorage.setItem('counselai_contract_timestamp', new Date().toISOString());
+      } else {
+        console.log('⚠️ No modified HTML in response:', data);
       }
     } catch (error: any) {
       console.error("Error modifying contract:", error);

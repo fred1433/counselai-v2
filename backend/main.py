@@ -78,11 +78,17 @@ Your task:
 - Preserve all unchanged content exactly as is
 - Ensure legal precision and proper language
 
-IMPORTANT: 
-- Return ONLY the modified HTML document, nothing else
-- Do not add explanations or comments
-- Keep all existing HTML tags, classes, and structure
-- Make only the requested changes
+For example:
+- If asked to "rewrite the document", you should completely rewrite the content while keeping the HTML structure
+- If asked to "add a clause about X", insert the new clause in the appropriate section
+- If asked to "change the company name to Y", replace all instances of the company name
+
+CRITICAL RULES:
+1. You MUST return the COMPLETE modified HTML document
+2. You MUST return ONLY HTML - no explanations, no markdown, no comments
+3. You MUST make actual changes based on the request
+4. You MUST preserve the HTML structure and tags
+5. The output should start with HTML tags (like <h1>, <p>, <div>, etc.)
 """
 
 @app.get("/")
@@ -209,6 +215,10 @@ Remember: Return ONLY the modified HTML, no explanations.
         # Générer la réponse
         response = await modification_model.generate_content_async(context)
         modified_html = response.text.strip()
+        
+        print(f"📝 Modification request: {request.modification_request}")
+        print(f"📄 Response length: {len(modified_html)} characters")
+        print(f"📄 Response preview: {modified_html[:200]}...")
         
         # Vérifier si la réponse contient du HTML
         if '<' in modified_html and '>' in modified_html:
