@@ -238,7 +238,7 @@ function App() {
     try {
       // Create AbortController for timeout handling
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 180000); // 180 seconds timeout for contract generation
+      const timeoutId = setTimeout(() => controller.abort(), 300000); // 300 seconds (5 minutes) timeout for contract generation
       
       const response = await fetch(`${API_URL}/api/generate_contract`, {
         method: 'POST',
